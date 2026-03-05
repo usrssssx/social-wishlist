@@ -134,8 +134,6 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
         containerRef.current.innerHTML = '';
         widgetId = turnstile.render(containerRef.current, {
           sitekey: siteKey,
-          size: 'flexible',
-          appearance: 'always',
           callback: (token: string) => {
             setRenderError('');
             onErrorChange?.(null);
@@ -145,7 +143,6 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
           'timeout-callback': () => onTokenChange(null),
           'error-callback': (code: unknown) => reportError(getReadableTurnstileError(code)),
           'unsupported-callback': () => reportError('Ваш браузер не поддерживает CAPTCHA. Обновите браузер.'),
-          theme: 'light',
         });
         setInitializing(false);
       } catch {
