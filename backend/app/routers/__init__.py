@@ -1,3 +1,3 @@
-from . import auth, public, wishlists
+from . import auth, public, webhooks, wishlists
 
-__all__ = ['auth', 'public', 'wishlists']
+__all__ = ['auth', 'public', 'webhooks', 'wishlists']

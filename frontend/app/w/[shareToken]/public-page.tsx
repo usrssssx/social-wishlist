@@ -208,6 +208,16 @@ export default function PublicWishlistPage() {
         </div>
       )}
 
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 8 }}>Правила этого списка</h3>
+        <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, color: 'var(--muted)' }}>
+          <li>Владелец не видит, кто забронировал подарок и кто сколько внёс.</li>
+          <li>Если по подарку уже есть вклады, целиком забронировать его нельзя.</li>
+          <li>После дедлайна новые брони и вклады закрываются автоматически.</li>
+          <li>Если к дедлайну сбор не добран, подарок помечается как «Не добрали».</li>
+        </ul>
+      </section>
+
       {/* Items */}
       {wishlist.items.length === 0 ? (
         <div className="card empty-state animate-fade-in">

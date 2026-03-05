@@ -21,6 +21,7 @@ from ..schemas import (
     WishlistPublicDetail,
 )
 from ..services.captcha_service import verify_captcha_or_skip
+from ..services.anti_abuse import enforce_public_action_limit
 from ..services.realtime import hub
 from ..services.wishlist_service import (
     ZERO,
@@ -65,7 +66,9 @@ async def create_viewer_session(
     share_token: str,
     db: AsyncSession = Depends(get_db),
 ) -> ViewerSessionResponse:
-    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
+    client_ip = request.client.host if request.client else 'unknown'
+    enforce_public_action_limit('viewer_session', f'{share_token}:{client_ip}')
+    await verify_captcha_or_skip(payload.captcha_token, client_ip if client_ip != 'unknown' else None)
     wishlist = await get_wishlist_by_token(db, share_token)
     session_token = await generate_viewer_token(db)
 
@@ -201,7 +204,8 @@ async def contribute(
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ContributionResponse:
-    _ = request
+    client_ip = request.client.host if request.client else 'unknown'
+    enforce_public_action_limit('contribution', f'{share_token}:{client_ip}')
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     if is_deadline_passed(wishlist.event_date):

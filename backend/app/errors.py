@@ -25,6 +25,8 @@ _DETAIL_MAP: dict[str, str] = {
     'Invalid credentials': 'Неверный email или пароль.',
     'Email is not verified. Please confirm email before login.': 'Подтвердите email перед входом.',
     'Invalid or expired token': 'Ссылка недействительна или устарела.',
+    'Failed to send verification email': 'Не удалось отправить письмо подтверждения. Попробуйте позже.',
+    'Failed to send password reset email': 'Не удалось отправить письмо для сброса пароля. Попробуйте позже.',
     'Item not found': 'Подарок не найден.',
     'Item is archived': 'Этот подарок в архиве, действие недоступно.',
     'Item already reserved': 'Подарок уже забронирован.',
@@ -38,6 +40,9 @@ _DETAIL_MAP: dict[str, str] = {
     'Set price or goal amount to enable contributions': 'Чтобы включить сбор, укажите цену или цель сбора.',
     'Wishlist deadline passed. New reservations are closed.': 'Срок вишлиста прошел. Новые брони закрыты.',
     'Wishlist deadline passed. Contributions are closed.': 'Срок вишлиста прошел. Вклады закрыты.',
+    'Webhook is not configured': 'Webhook не настроен.',
+    'Webhook signature is invalid': 'Неверная подпись webhook.',
+    'Invalid webhook payload': 'Некорректные данные webhook.',
 }
 
 _STATUS_DEFAULTS: dict[int, str] = {

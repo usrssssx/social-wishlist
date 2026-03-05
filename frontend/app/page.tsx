@@ -86,6 +86,16 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <section className="card animate-fade-up" style={{ marginTop: 28, animationDelay: '.25s' }}>
+        <h3 style={{ marginBottom: 8 }}>Прозрачные правила</h3>
+        <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, color: 'var(--muted)' }}>
+          <li>Владелец не видит, кто конкретно бронировал или вносил деньги.</li>
+          <li>Удаление товара с бронями/вкладами не стирает историю: товар уходит в архив.</li>
+          <li>После даты события новые брони и вклады блокируются автоматически.</li>
+          <li>Недобранные сборы помечаются отдельно, с видимым остатком суммы.</li>
+        </ul>
+      </section>
     </main>
   );
 }

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     smtp_from_email: str = 'no-reply@wishlist.local'
     resend_api_key: str | None = None
     resend_api_url: str = 'https://api.resend.com/emails'
+    resend_webhook_secret: str | None = None
+    email_send_retries: int = 3
+    email_send_retry_backoff_seconds: float = 1.0
+    email_send_timeout_seconds: float = 15.0
+    health_5xx_threshold_5m: int = 30
     verify_email_token_ttl_minutes: int = 60 * 24
     reset_password_token_ttl_minutes: int = 60
     captcha_provider: str = 'turnstile'

@@ -104,6 +104,8 @@ docker compose up -d --build
 - На auth и публичные write-операции включён rate limit.
 - Для production рекомендуется заполнить `SENTRY_DSN` и email-переменные из `backend/.env.example`.
 - Если задан `RESEND_API_KEY`, backend отправляет письма через Resend API (приоритетно); иначе использует SMTP.
+- Для Resend webhook событий доставки/отказов задайте `RESEND_WEBHOOK_SECRET` и подключите endpoint `POST /api/webhooks/resend`.
+- При временных сбоях email-провайдера backend делает повторные попытки отправки (`EMAIL_SEND_RETRIES`).
 - Для защиты от ботов можно включить Turnstile: `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend).
 
 ## Проверка realtime
@@ -111,6 +113,12 @@ docker compose up -d --build
 - Откройте публичную ссылку в двух вкладках.
 - В одной сделайте бронь/вклад.
 - Во второй обновление состояния придёт мгновенно без reload.
+
+## Production smoke после деплоя
+
+- Скрипт: `scripts/smoke_prod.sh`
+- Чеклист: `docs/production-smoke.md`
+- Алерты и наблюдаемость: `docs/alerts.md`
 
 ## Деплой
 
@@ -128,6 +136,9 @@ docker compose up -d --build
 6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
 7. Если включаете CAPTCHA: задайте `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), затем redeploy обоих сервисов.
 8. Для email-доставки через Resend задайте `RESEND_API_KEY` в backend service.
+9. Для мониторинга delivery/bounce в Resend Webhooks укажите URL:
+   `https://<backend>/api/webhooks/resend`
+   и заголовок `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
 
 ## CI
 

@@ -36,6 +36,14 @@ services:
         value: https://challenges.cloudflare.com/turnstile/v0/siteverify
       - key: RESEND_API_KEY
         sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: EMAIL_SEND_RETRIES
+        value: 3
+      - key: EMAIL_SEND_RETRY_BACKOFF_SECONDS
+        value: 1.0
+      - key: EMAIL_SEND_TIMEOUT_SECONDS
+        value: 15.0
 
   - type: web
     name: swl-frontend

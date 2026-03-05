@@ -19,7 +19,7 @@ from ..schemas import (
     RegisterResponse,
     UserResponse,
 )
-from ..services.email_service import send_reset_password_email, send_verify_email
+from ..services.email_service import EmailDeliveryError, send_reset_password_email, send_verify_email
 from ..services.captcha_service import verify_captcha_or_skip
 from ..services.token_service import consume_email_action_token, issue_email_action_token
 
@@ -56,9 +56,15 @@ async def register(
         EmailActionPurpose.verify_email,
         settings.verify_email_token_ttl_minutes,
     )
+    try:
+        await send_verify_email(user.email, token)
+    except EmailDeliveryError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Failed to send verification email',
+        ) from exc
     await db.commit()
-
-    await send_verify_email(user.email, token)
     return RegisterResponse(detail='Registration successful. Check your email to verify your account.')
 
 
@@ -103,8 +109,15 @@ async def resend_verification(
             EmailActionPurpose.verify_email,
             settings.verify_email_token_ttl_minutes,
         )
+        try:
+            await send_verify_email(user.email, token)
+        except EmailDeliveryError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail='Failed to send verification email',
+            ) from exc
         await db.commit()
-        await send_verify_email(user.email, token)
 
     return GenericMessageResponse(detail='If this email exists, verification instructions were sent.')
 
@@ -149,8 +162,15 @@ async def password_reset_request(
             EmailActionPurpose.reset_password,
             settings.reset_password_token_ttl_minutes,
         )
+        try:
+            await send_reset_password_email(user.email, token)
+        except EmailDeliveryError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail='Failed to send password reset email',
+            ) from exc
         await db.commit()
-        await send_reset_password_email(user.email, token)
 
     return GenericMessageResponse(detail='If this email exists, reset instructions were sent.')
 

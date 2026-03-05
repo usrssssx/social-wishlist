@@ -228,6 +228,16 @@ export default function ManageWishlistPage() {
         </div>
       </section>
 
+      <section className="card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 8 }}>Как система ведёт себя в спорных кейсах</h3>
+        <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, color: 'var(--muted)' }}>
+          <li>Вы не видите имена и суммы отдельных участников, только агрегаты.</li>
+          <li>Если товар удалён после брони или вкладов, он уходит в архив с пояснением.</li>
+          <li>После дедлайна новые брони и вклады блокируются автоматически.</li>
+          <li>Недобранные к дедлайну сборы помечаются как «Не добрали» с остатком суммы.</li>
+        </ul>
+      </section>
+
       {/* Add item form */}
       <section className="card animate-fade-up" style={{ marginBottom: 28, animationDelay: '.08s' }}>
         <h3 style={{ marginBottom: 20 }}>Добавить подарок</h3>

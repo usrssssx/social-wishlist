@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import smtplib
+from dataclasses import dataclass
 from email.message import EmailMessage
 
 import httpx
+import sentry_sdk
 
 from ..config import get_settings
 
@@ -13,7 +16,18 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def _send_email_sync(to_email: str, subject: str, body: str) -> None:
+class EmailDeliveryError(Exception):
+    pass
+
+
+@dataclass(slots=True)
+class EmailSendResult:
+    provider: str
+    message_id: str | None
+
+
+def _send_via_resend(to_email: str, subject: str, body: str) -> EmailSendResult:
+    timeout = settings.email_send_timeout_seconds
     if settings.resend_api_key:
         payload = {
             'from': settings.smtp_from_email,
@@ -25,13 +39,21 @@ def _send_email_sync(to_email: str, subject: str, body: str) -> None:
             'Authorization': f'Bearer {settings.resend_api_key}',
             'Content-Type': 'application/json',
         }
-        response = httpx.post(settings.resend_api_url, json=payload, headers=headers, timeout=15.0)
+        response = httpx.post(settings.resend_api_url, json=payload, headers=headers, timeout=timeout)
         response.raise_for_status()
-        return
+        data = response.json() if response.content else {}
+        message_id = str(data.get('id')) if isinstance(data, dict) and data.get('id') else None
+        return EmailSendResult(provider='resend', message_id=message_id)
+
+    raise RuntimeError('Resend API key is not configured')
+
+
+def _send_via_smtp(to_email: str, subject: str, body: str) -> EmailSendResult:
+    timeout = int(settings.email_send_timeout_seconds)
 
     if not settings.smtp_host:
         logger.warning('Email provider is not configured. Email to %s with subject "%s": %s', to_email, subject, body)
-        return
+        return EmailSendResult(provider='noop', message_id=None)
 
     message = EmailMessage()
     message['Subject'] = subject
@@ -39,19 +61,62 @@ def _send_email_sync(to_email: str, subject: str, body: str) -> None:
     message['To'] = to_email
     message.set_content(body)
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=timeout) as smtp:
         if settings.smtp_use_tls:
             smtp.starttls()
         if settings.smtp_username and settings.smtp_password:
             smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(message)
+    return EmailSendResult(provider='smtp', message_id=None)
 
 
-async def send_email(to_email: str, subject: str, body: str) -> None:
-    try:
-        await asyncio.to_thread(_send_email_sync, to_email, subject, body)
-    except Exception:
-        logger.exception('Failed to send email to %s', to_email)
+def _send_email_sync(to_email: str, subject: str, body: str) -> EmailSendResult:
+    if settings.resend_api_key:
+        return _send_via_resend(to_email, subject, body)
+    return _send_via_smtp(to_email, subject, body)
+
+
+def _is_transient_send_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.TimeoutException | httpx.NetworkError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= 500 or exc.response.status_code == 429
+    if isinstance(exc, smtplib.SMTPServerDisconnected | smtplib.SMTPConnectError):
+        return True
+    if isinstance(exc, smtplib.SMTPResponseException):
+        return exc.smtp_code >= 500 or exc.smtp_code == 421
+    return False
+
+
+async def send_email(to_email: str, subject: str, body: str) -> EmailSendResult:
+    retries = max(1, settings.email_send_retries)
+    last_error: Exception | None = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            result = await asyncio.to_thread(_send_email_sync, to_email, subject, body)
+            extra = {'provider': result.provider, 'message_id': result.message_id}
+            logger.info('Email sent to %s (%s)', to_email, json.dumps(extra, ensure_ascii=False))
+            return result
+        except Exception as exc:
+            last_error = exc
+            transient = _is_transient_send_error(exc)
+            logger.warning(
+                'Email send failed (attempt %s/%s, transient=%s) to %s: %s',
+                attempt,
+                retries,
+                transient,
+                to_email,
+                exc,
+            )
+            if attempt < retries and transient:
+                await asyncio.sleep(settings.email_send_retry_backoff_seconds * attempt)
+                continue
+            logger.exception('Email delivery permanently failed for %s', to_email)
+            sentry_sdk.capture_message(f'Email delivery permanently failed for {to_email}', level='error')
+            break
+
+    raise EmailDeliveryError('Email delivery failed') from last_error
 
 
 async def send_verify_email(to_email: str, token: str) -> None:
