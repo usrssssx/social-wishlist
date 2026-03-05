@@ -79,19 +79,36 @@ type TurnstileCaptchaProps = {
   onErrorChange?: (error: string | null) => void;
 };
 
+type TurnstileRenderOverrides = {
+  size?: 'normal' | 'compact' | 'invisible' | 'flexible';
+  appearance?: 'always' | 'execute' | 'interaction-only';
+  theme?: 'auto' | 'light' | 'dark';
+};
+
+const SIZE_FALLBACKS: TurnstileRenderOverrides['size'][] = ['invisible', 'normal', 'compact', 'flexible'];
+const APPEARANCE_FALLBACKS: TurnstileRenderOverrides['appearance'][] = ['always', 'execute', 'interaction-only'];
+const THEME_FALLBACKS: TurnstileRenderOverrides['theme'][] = ['auto', 'light', 'dark'];
+
+function normalizeErrorCode(code: unknown): string {
+  if (typeof code === 'number' || typeof code === 'string') {
+    return String(code);
+  }
+  return '';
+}
+
 function getReadableTurnstileError(code: unknown): string {
-  const normalized = typeof code === 'number' || typeof code === 'string' ? String(code) : '';
+  const normalized = normalizeErrorCode(code);
   if (!normalized) {
     return 'Не удалось загрузить CAPTCHA. Обновите страницу.';
   }
   if (normalized === '400020') {
-    return 'CAPTCHA настроена с неверным размером. Обновите страницу или свяжитесь с поддержкой.';
+    return 'Конфликт параметров размера CAPTCHA. Проверьте режим виджета Turnstile в Cloudflare.';
   }
   if (normalized === '400030') {
-    return 'CAPTCHA настроена с неверным режимом отображения. Обновите страницу или свяжитесь с поддержкой.';
+    return 'Конфликт режима отображения CAPTCHA. Проверьте настройки виджета Turnstile.';
   }
   if (normalized === '400040') {
-    return 'CAPTCHA настроена с неверной темой. Обновите страницу или свяжитесь с поддержкой.';
+    return 'Конфликт темы CAPTCHA. Проверьте настройки виджета Turnstile.';
   }
   if (normalized === '600010' || normalized === '110200') {
     return 'CAPTCHA недоступна для этого домена. Проверьте настройки ключей Turnstile.';
@@ -114,11 +131,105 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
 
     let cancelled = false;
     let widgetId: string | null = null;
+    let turnstileApi: TurnstileApi | null = null;
+    let activeOverrides: TurnstileRenderOverrides = {};
+    let retries = 0;
+    const maxRetries = 7;
+    const triedSizes = new Set<TurnstileRenderOverrides['size']>();
+    const triedAppearances = new Set<TurnstileRenderOverrides['appearance']>();
+    const triedThemes = new Set<TurnstileRenderOverrides['theme']>();
     const reportError = (message: string) => {
       if (cancelled) return;
       setRenderError(message);
       onTokenChange(null);
       onErrorChange?.(message);
+    };
+
+    const resetContainer = () => {
+      if (!containerRef.current) return;
+      containerRef.current.innerHTML = '';
+    };
+
+    const clearWidget = () => {
+      if (widgetId && window.turnstile) {
+        window.turnstile.remove(widgetId);
+        widgetId = null;
+      }
+    };
+
+    const buildRenderOptions = (): Record<string, unknown> => ({
+      sitekey: siteKey,
+      ...activeOverrides,
+      callback: (token: string) => {
+        setRenderError('');
+        onErrorChange?.(null);
+        onTokenChange(token);
+      },
+      'expired-callback': () => onTokenChange(null),
+      'timeout-callback': () => onTokenChange(null),
+      'error-callback': (code: unknown) => {
+        const normalizedCode = normalizeErrorCode(code);
+        onTokenChange(null);
+        if (tryRetryWithFallback(normalizedCode)) {
+          return;
+        }
+        reportError(getReadableTurnstileError(normalizedCode));
+      },
+      'unsupported-callback': () => reportError('Ваш браузер не поддерживает CAPTCHA. Обновите браузер.'),
+    });
+
+    const renderWidget = () => {
+      if (cancelled || !containerRef.current || !turnstileApi) return;
+      try {
+        clearWidget();
+        resetContainer();
+        widgetId = turnstileApi.render(containerRef.current, buildRenderOptions());
+        setInitializing(false);
+      } catch {
+        setInitializing(false);
+        reportError('Не удалось отрисовать CAPTCHA. Проверьте настройки Turnstile для этого домена.');
+      }
+    };
+
+    const tryRetryWithFallback = (code: string): boolean => {
+      if (!code || retries >= maxRetries) return false;
+
+      let nextOverrides: TurnstileRenderOverrides | null = null;
+
+      if (code === '400020') {
+        const nextSize = SIZE_FALLBACKS.find((size) => !triedSizes.has(size));
+        if (nextSize) {
+          triedSizes.add(nextSize);
+          nextOverrides = { ...activeOverrides, size: nextSize };
+        }
+      } else if (code === '400030') {
+        const nextAppearance = APPEARANCE_FALLBACKS.find((appearance) => !triedAppearances.has(appearance));
+        if (nextAppearance) {
+          triedAppearances.add(nextAppearance);
+          nextOverrides = { ...activeOverrides, appearance: nextAppearance };
+        }
+      } else if (code === '400040') {
+        const nextTheme = THEME_FALLBACKS.find((theme) => !triedThemes.has(theme));
+        if (nextTheme) {
+          triedThemes.add(nextTheme);
+          nextOverrides = { ...activeOverrides, theme: nextTheme };
+        }
+      }
+
+      if (!nextOverrides) {
+        return false;
+      }
+
+      retries += 1;
+      activeOverrides = nextOverrides;
+      setRenderError('');
+      onErrorChange?.(null);
+      setTimeout(() => {
+        if (!cancelled) {
+          renderWidget();
+        }
+      }, 0);
+      return true;
     };
 
     async function mount() {
@@ -128,23 +239,9 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
       onErrorChange?.(null);
       try {
         await loadTurnstileScript();
-        const turnstile = await waitForTurnstile(10000);
+        turnstileApi = await waitForTurnstile(10000);
         if (cancelled || !containerRef.current) return;
-
-        containerRef.current.innerHTML = '';
-        widgetId = turnstile.render(containerRef.current, {
-          sitekey: siteKey,
-          callback: (token: string) => {
-            setRenderError('');
-            onErrorChange?.(null);
-            onTokenChange(token);
-          },
-          'expired-callback': () => onTokenChange(null),
-          'timeout-callback': () => onTokenChange(null),
-          'error-callback': (code: unknown) => reportError(getReadableTurnstileError(code)),
-          'unsupported-callback': () => reportError('Ваш браузер не поддерживает CAPTCHA. Обновите браузер.'),
-        });
-        setInitializing(false);
+        renderWidget();
       } catch {
         setInitializing(false);
         reportError('Не удалось загрузить CAPTCHA. Обновите страницу.');
@@ -158,9 +255,7 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
       setInitializing(false);
       onTokenChange(null);
       onErrorChange?.(null);
-      if (widgetId && window.turnstile) {
-        window.turnstile.remove(widgetId);
-      }
+      clearWidget();
     };
   }, [onErrorChange, onTokenChange, resetNonce, siteKey]);
 
