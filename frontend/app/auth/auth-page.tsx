@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+import TurnstileCaptcha from '@/components/ui/turnstile-captcha';
 import { api } from '@/lib/api';
 import { getAuthToken, setAuthToken } from '@/lib/utils';
 
@@ -21,9 +22,12 @@ export default function AuthPage() {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetRequested, setResetRequested] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaNonce, setCaptchaNonce] = useState(0);
 
   const verifyToken = searchParams.get('verify_token');
   const resetToken = searchParams.get('reset_token');
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   useEffect(() => {
     if (getAuthToken()) router.replace('/dashboard');
@@ -78,6 +82,9 @@ export default function AuthPage() {
     setInfo('');
     setLoading(true);
 
+    let captchaForRequest: string | null = null;
+    let shouldResetCaptcha = false;
+
     try {
       if (resetToken) {
         const result = await api.confirmPasswordReset(resetToken, resetPassword);
@@ -87,20 +94,33 @@ export default function AuthPage() {
         return;
       }
 
+      if (captchaEnabled) {
+        if (!captchaToken) {
+          setError('Подтвердите CAPTCHA');
+          return;
+        }
+        captchaForRequest = captchaToken;
+        shouldResetCaptcha = true;
+      }
+
       if (mode === 'login') {
-        const res = await api.login(email.trim(), password);
+        const res = await api.login(email.trim(), password, captchaForRequest);
         setAuthToken(res.access_token);
         router.push('/dashboard');
         return;
       }
 
-      const registerResult = await api.register(email.trim(), password, name.trim());
+      const registerResult = await api.register(email.trim(), password, name.trim(), captchaForRequest);
       setInfo(registerResult.detail);
       setMode('login');
       setPassword('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка авторизации');
     } finally {
+      if (shouldResetCaptcha) {
+        setCaptchaToken(null);
+        setCaptchaNonce((prev) => prev + 1);
+      }
       setLoading(false);
     }
   }
@@ -113,12 +133,24 @@ export default function AuthPage() {
     setError('');
     setInfo('');
     setLoading(true);
+    let shouldResetCaptcha = false;
     try {
-      const result = await api.resendVerification(email.trim());
+      if (captchaEnabled) {
+        if (!captchaToken) {
+          setError('Подтвердите CAPTCHA');
+          return;
+        }
+        shouldResetCaptcha = true;
+      }
+      const result = await api.resendVerification(email.trim(), captchaToken);
       setInfo(result.detail);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось отправить письмо');
     } finally {
+      if (shouldResetCaptcha) {
+        setCaptchaToken(null);
+        setCaptchaNonce((prev) => prev + 1);
+      }
       setLoading(false);
     }
   }
@@ -131,13 +163,25 @@ export default function AuthPage() {
     setError('');
     setInfo('');
     setLoading(true);
+    let shouldResetCaptcha = false;
     try {
-      const result = await api.requestPasswordReset(email.trim());
+      if (captchaEnabled) {
+        if (!captchaToken) {
+          setError('Подтвердите CAPTCHA');
+          return;
+        }
+        shouldResetCaptcha = true;
+      }
+      const result = await api.requestPasswordReset(email.trim(), captchaToken);
       setInfo(result.detail);
       setResetRequested(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось отправить письмо для сброса');
     } finally {
+      if (shouldResetCaptcha) {
+        setCaptchaToken(null);
+        setCaptchaNonce((prev) => prev + 1);
+      }
       setLoading(false);
     }
   }
@@ -214,6 +258,9 @@ export default function AuthPage() {
 
             {error && <p className="error">{error}</p>}
             {info && <p className="success">{info}</p>}
+            {!resetToken && (
+              <TurnstileCaptcha onTokenChange={setCaptchaToken} resetNonce={captchaNonce} />
+            )}
 
             <button className="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: 4 }}>
               {loading

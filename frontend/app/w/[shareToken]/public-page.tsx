@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 
+import TurnstileCaptcha from '@/components/ui/turnstile-captcha';
 import { api, getWsUrl } from '@/lib/api';
 import type { PublicItem, WishlistPublicDetail } from '@/lib/types';
 import { formatMoney, getViewerToken, setViewerToken } from '@/lib/utils';
@@ -19,6 +20,9 @@ export default function PublicWishlistPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaNonce, setCaptchaNonce] = useState(0);
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   async function load(token: string | null) {
     setLoading(true); setError('');
@@ -52,14 +56,27 @@ export default function PublicWishlistPage() {
   async function createSession(e: FormEvent) {
     e.preventDefault();
     setError('');
+    let shouldResetCaptcha = false;
     try {
-      const session = await api.createViewerSession(shareToken, viewerName.trim());
+      if (captchaEnabled) {
+        if (!captchaToken) {
+          setError('Подтвердите CAPTCHA');
+          return;
+        }
+        shouldResetCaptcha = true;
+      }
+      const session = await api.createViewerSession(shareToken, viewerName.trim(), captchaToken);
       setViewerToken(shareToken, session.session_token);
       setViewerTokenState(session.session_token);
       setViewerName('');
       await load(session.session_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось создать сессию');
+    } finally {
+      if (shouldResetCaptcha) {
+        setCaptchaToken(null);
+        setCaptchaNonce((prev) => prev + 1);
+      }
     }
   }
 
@@ -162,6 +179,7 @@ export default function PublicWishlistPage() {
               <input className="input" value={viewerName}
                 onChange={(e) => setViewerName(e.target.value)}
                 placeholder="Ваше имя" required style={{ width: 200 }} />
+              <TurnstileCaptcha onTokenChange={setCaptchaToken} resetNonce={captchaNonce} />
               <button className="btn btn-primary" type="submit">Войти как гость</button>
             </form>
           </div>

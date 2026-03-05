@@ -50,24 +50,24 @@ async function request<T>(
 }
 
 export const api = {
-  register(email: string, password: string, name: string) {
+  register(email: string, password: string, name: string, captchaToken?: string | null) {
     return request<RegisterResponse>('/api/auth/register', {
       method: 'POST',
-      body: { email, password, name }
+      body: { email, password, name, captcha_token: captchaToken ?? null }
     });
   },
 
-  login(email: string, password: string) {
+  login(email: string, password: string, captchaToken?: string | null) {
     return request<AuthResponse>('/api/auth/login', {
       method: 'POST',
-      body: { email, password }
+      body: { email, password, captcha_token: captchaToken ?? null }
     });
   },
 
-  resendVerification(email: string) {
+  resendVerification(email: string, captchaToken?: string | null) {
     return request<GenericMessageResponse>('/api/auth/resend-verification', {
       method: 'POST',
-      body: { email }
+      body: { email, captcha_token: captchaToken ?? null }
     });
   },
 
@@ -78,10 +78,10 @@ export const api = {
     });
   },
 
-  requestPasswordReset(email: string) {
+  requestPasswordReset(email: string, captchaToken?: string | null) {
     return request<GenericMessageResponse>('/api/auth/password-reset/request', {
       method: 'POST',
-      body: { email }
+      body: { email, captcha_token: captchaToken ?? null }
     });
   },
 
@@ -167,10 +167,10 @@ export const api = {
     });
   },
 
-  createViewerSession(shareToken: string, displayName: string) {
+  createViewerSession(shareToken: string, displayName: string, captchaToken?: string | null) {
     return request<{ display_name: string; session_token: string }>(`/api/public/w/${shareToken}/sessions`, {
       method: 'POST',
-      body: { display_name: displayName }
+      body: { display_name: displayName, captcha_token: captchaToken ?? null }
     });
   },
 

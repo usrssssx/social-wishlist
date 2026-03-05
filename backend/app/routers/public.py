@@ -20,6 +20,7 @@ from ..schemas import (
     ViewerSessionResponse,
     WishlistPublicDetail,
 )
+from ..services.captcha_service import verify_captcha_or_skip
 from ..services.realtime import hub
 from ..services.wishlist_service import (
     ZERO,
@@ -65,7 +66,7 @@ async def create_viewer_session(
     payload: ViewerSessionCreateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> ViewerSessionResponse:
-    _ = request
+    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
     wishlist = await get_wishlist_by_token(db, share_token)
     session_token = await generate_viewer_token(db)
 

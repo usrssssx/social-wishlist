@@ -15,6 +15,7 @@
 - Realtime: FastAPI WebSocket hub
 - Auth: email + password (JWT) + email verification + reset password
 - Rate limiting: SlowAPI (IP-based)
+- CAPTCHA: Cloudflare Turnstile (optional)
 - Migrations: Alembic
 - Observability: Sentry (optional)
 - Автозаполнение товара по URL: OpenGraph/JSON-LD parser
@@ -102,6 +103,7 @@ docker compose up -d --build
 - Доступен reset password flow через email.
 - На auth и публичные write-операции включён rate limit.
 - Для production рекомендуется заполнить `SENTRY_DSN` и SMTP-переменные из `backend/.env.example`.
+- Для защиты от ботов можно включить Turnstile: `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend).
 
 ## Проверка realtime
 
@@ -123,6 +125,7 @@ docker compose up -d --build
 4. В backend service задайте `CORS_ORIGINS=<frontend-public-url>` и redeploy backend.
 5. В frontend service задайте `NEXT_PUBLIC_API_URL=<backend-public-url>` и redeploy frontend.
 6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
+7. Если включаете CAPTCHA: задайте `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), затем redeploy обоих сервисов.
 
 ## CI
 

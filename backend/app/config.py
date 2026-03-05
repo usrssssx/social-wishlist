@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     smtp_from_email: str = 'no-reply@wishlist.local'
     verify_email_token_ttl_minutes: int = 60 * 24
     reset_password_token_ttl_minutes: int = 60
+    captcha_provider: str = 'turnstile'
+    captcha_secret_key: str | None = None
+    captcha_verify_url: str = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 
     @field_validator('database_url')
     @classmethod

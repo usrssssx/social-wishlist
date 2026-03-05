@@ -20,6 +20,7 @@ from ..schemas import (
     UserResponse,
 )
 from ..services.email_service import send_reset_password_email, send_verify_email
+from ..services.captcha_service import verify_captcha_or_skip
 from ..services.token_service import consume_email_action_token, issue_email_action_token
 
 router = APIRouter(prefix='/api/auth', tags=['auth'])
@@ -33,7 +34,7 @@ async def register(
     payload: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse:
-    _ = request
+    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
     existing_result = await db.execute(
         select(User).where(func.lower(User.email) == payload.email.lower())
     )
@@ -68,7 +69,7 @@ async def login(
     payload: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
-    _ = request
+    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
     result = await db.execute(select(User).where(func.lower(User.email) == payload.email.lower()))
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
@@ -91,7 +92,7 @@ async def resend_verification(
     payload: EmailActionRequest,
     db: AsyncSession = Depends(get_db),
 ) -> GenericMessageResponse:
-    _ = request
+    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
     result = await db.execute(select(User).where(func.lower(User.email) == payload.email.lower()))
     user = result.scalar_one_or_none()
 
@@ -137,7 +138,7 @@ async def password_reset_request(
     payload: EmailActionRequest,
     db: AsyncSession = Depends(get_db),
 ) -> GenericMessageResponse:
-    _ = request
+    await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
     result = await db.execute(select(User).where(func.lower(User.email) == payload.email.lower()))
     user = result.scalar_one_or_none()
 

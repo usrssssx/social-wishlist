@@ -28,6 +28,12 @@ services:
         value: production
       - key: MIN_CONTRIBUTION_AMOUNT
         value: 100
+      - key: CAPTCHA_PROVIDER
+        value: turnstile
+      - key: CAPTCHA_SECRET_KEY
+        sync: false
+      - key: CAPTCHA_VERIFY_URL
+        value: https://challenges.cloudflare.com/turnstile/v0/siteverify
 
   - type: web
     name: swl-frontend
@@ -38,4 +44,6 @@ services:
     plan: starter
     envVars:
       - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_TURNSTILE_SITE_KEY
         sync: false

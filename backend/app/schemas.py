@@ -16,11 +16,13 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     name: str = Field(min_length=2, max_length=120)
+    captcha_token: str | None = Field(default=None, max_length=2000)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    captcha_token: str | None = Field(default=None, max_length=2000)
 
 
 class RegisterResponse(BaseModel):
@@ -45,6 +47,7 @@ class UserResponse(BaseModel):
 
 class EmailActionRequest(BaseModel):
     email: EmailStr
+    captcha_token: str | None = Field(default=None, max_length=2000)
 
 
 class EmailActionConfirmRequest(BaseModel):
@@ -127,6 +130,7 @@ class WishlistOwnerDetail(BaseModel):
 
 class ViewerSessionCreateRequest(BaseModel):
     display_name: str = Field(min_length=2, max_length=120)
+    captcha_token: str | None = Field(default=None, max_length=2000)
 
 
 class ViewerSessionResponse(BaseModel):
