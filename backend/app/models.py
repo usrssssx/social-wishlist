@@ -30,6 +30,11 @@ class ItemStatus(str, enum.Enum):
     archived = 'archived'
 
 
+class EmailActionPurpose(str, enum.Enum):
+    verify_email = 'verify_email'
+    reset_password = 'reset_password'
+
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -37,9 +42,25 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(120))
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     wishlists: Mapped[list[Wishlist]] = relationship(back_populates='owner', cascade='all, delete-orphan')
+    email_tokens: Mapped[list[EmailActionToken]] = relationship(back_populates='user', cascade='all, delete-orphan')
+
+
+class EmailActionToken(Base):
+    __tablename__ = 'email_action_tokens'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    purpose: Mapped[EmailActionPurpose] = mapped_column(Enum(EmailActionPurpose))
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship(back_populates='email_tokens')
 
 
 class Wishlist(Base):

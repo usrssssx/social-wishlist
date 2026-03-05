@@ -23,6 +23,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://wishlist:wishlist@db:5432/wishlist
       JWT_SECRET: super-secret-change-me
       CORS_ORIGINS: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      ENVIRONMENT: development
       MIN_CONTRIBUTION_AMOUNT: 100
     depends_on:
       db:

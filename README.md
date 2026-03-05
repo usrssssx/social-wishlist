@@ -13,7 +13,10 @@
 - Backend: FastAPI + SQLAlchemy async
 - DB: PostgreSQL
 - Realtime: FastAPI WebSocket hub
-- Auth: email + password (JWT)
+- Auth: email + password (JWT) + email verification + reset password
+- Rate limiting: SlowAPI (IP-based)
+- Migrations: Alembic
+- Observability: Sentry (optional)
 - Автозаполнение товара по URL: OpenGraph/JSON-LD parser
 
 ## Продуктовые решения
@@ -59,7 +62,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
+```
+
+Если БД была создана до Alembic (таблицы уже есть), выполните один раз:
+
+```bash
+cd backend
+alembic stamp 20260305_0001
+alembic upgrade head
 ```
 
 ### 3) Frontend
@@ -81,6 +93,16 @@ npm run dev
 docker compose up -d --build
 ```
 
+Контейнер backend при старте выполняет `alembic upgrade head`.
+
+## Безопасность и прод-режим
+
+- Регистрация требует подтверждение email (письмо с verify link).
+- Вход запрещён для неподтверждённых email.
+- Доступен reset password flow через email.
+- На auth и публичные write-операции включён rate limit.
+- Для production рекомендуется заполнить `SENTRY_DSN` и SMTP-переменные из `backend/.env.example`.
+
 ## Проверка realtime
 
 - Откройте публичную ссылку в двух вкладках.
@@ -100,6 +122,14 @@ docker compose up -d --build
 3. После первого деплоя откройте frontend service и скопируйте его public URL.
 4. В backend service задайте `CORS_ORIGINS=<frontend-public-url>` и redeploy backend.
 5. В frontend service задайте `NEXT_PUBLIC_API_URL=<backend-public-url>` и redeploy frontend.
+6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
+
+## CI
+
+GitHub Actions workflow: `.github/workflows/ci.yml`
+
+- Backend: Postgres service, `alembic upgrade head`, `pytest`, `compileall`.
+- Frontend: `npm ci` + `npm run build`.
 
 ## Что ещё можно усилить
 

@@ -11,6 +11,16 @@ export type AuthResponse = {
   user: User;
 };
 
+export type RegisterResponse = {
+  ok: boolean;
+  detail: string;
+};
+
+export type GenericMessageResponse = {
+  ok: boolean;
+  detail: string;
+};
+
 export type WishlistSummary = {
   id: string;
   title: string;

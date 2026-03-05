@@ -23,6 +23,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterResponse(BaseModel):
+    ok: bool = True
+    detail: str
+
+
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = 'bearer'
@@ -36,6 +41,24 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     model_config = {'from_attributes': True}
+
+
+class EmailActionRequest(BaseModel):
+    email: EmailStr
+
+
+class EmailActionConfirmRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=255)
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=255)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class GenericMessageResponse(BaseModel):
+    ok: bool = True
+    detail: str
 
 
 class WishlistCreateRequest(BaseModel):

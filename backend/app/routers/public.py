@@ -4,13 +4,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
 from ..models import Contribution, Reservation, ViewerSession, WishlistItem
+from ..rate_limit import limiter
 from ..schemas import (
     ContributionCreateRequest,
     ContributionResponse,
@@ -57,11 +58,14 @@ async def public_wishlist(
 
 
 @router.post('/w/{share_token}/sessions', response_model=ViewerSessionResponse)
+@limiter.limit('20/hour')
 async def create_viewer_session(
+    request: Request,
     share_token: str,
     payload: ViewerSessionCreateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> ViewerSessionResponse:
+    _ = request
     wishlist = await get_wishlist_by_token(db, share_token)
     session_token = await generate_viewer_token(db)
 
@@ -78,12 +82,15 @@ async def create_viewer_session(
 
 
 @router.post('/w/{share_token}/items/{item_id}/reserve', response_model=ReserveResponse)
+@limiter.limit('60/hour')
 async def reserve_item(
+    request: Request,
     share_token: str,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ReserveResponse:
+    _ = request
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     if is_deadline_passed(wishlist.event_date):
@@ -146,12 +153,15 @@ async def reserve_item(
 
 
 @router.delete('/w/{share_token}/items/{item_id}/reserve', response_model=ReserveResponse)
+@limiter.limit('60/hour')
 async def unreserve_item(
+    request: Request,
     share_token: str,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ReserveResponse:
+    _ = request
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     try:
@@ -183,13 +193,16 @@ async def unreserve_item(
 
 
 @router.post('/w/{share_token}/items/{item_id}/contributions', response_model=ContributionResponse)
+@limiter.limit('60/hour')
 async def contribute(
+    request: Request,
     share_token: str,
     item_id: UUID,
     payload: ContributionCreateRequest,
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ContributionResponse:
+    _ = request
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     if is_deadline_passed(wishlist.event_date):

@@ -1,6 +1,8 @@
 import type {
   AuthResponse,
   AutofillResponse,
+  GenericMessageResponse,
+  RegisterResponse,
   WishlistOwnerDetail,
   WishlistPublicDetail,
   WishlistSummary
@@ -49,7 +51,7 @@ async function request<T>(
 
 export const api = {
   register(email: string, password: string, name: string) {
-    return request<AuthResponse>('/api/auth/register', {
+    return request<RegisterResponse>('/api/auth/register', {
       method: 'POST',
       body: { email, password, name }
     });
@@ -59,6 +61,34 @@ export const api = {
     return request<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: { email, password }
+    });
+  },
+
+  resendVerification(email: string) {
+    return request<GenericMessageResponse>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email }
+    });
+  },
+
+  verifyEmail(token: string) {
+    return request<GenericMessageResponse>('/api/auth/verify-email/confirm', {
+      method: 'POST',
+      body: { token }
+    });
+  },
+
+  requestPasswordReset(email: string) {
+    return request<GenericMessageResponse>('/api/auth/password-reset/request', {
+      method: 'POST',
+      body: { email }
+    });
+  },
+
+  confirmPasswordReset(token: string, newPassword: string) {
+    return request<GenericMessageResponse>('/api/auth/password-reset/confirm', {
+      method: 'POST',
+      body: { token, new_password: newPassword }
     });
   },
 

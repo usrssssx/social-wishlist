@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 30
     cors_origins: str = Field(default='http://localhost:3000')
     min_contribution_amount: float = 100.0
+    app_base_url: str = 'http://localhost:3001'
+    environment: str = 'development'
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.1
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_from_email: str = 'no-reply@wishlist.local'
+    verify_email_token_ttl_minutes: int = 60 * 24
+    reset_password_token_ttl_minutes: int = 60
 
     @field_validator('database_url')
     @classmethod
@@ -23,6 +35,9 @@ class Settings(BaseSettings):
         if value.startswith('postgres://'):
             return value.replace('postgres://', 'postgresql+asyncpg://', 1)
         return value
+
+    def sync_database_url(self) -> str:
+        return self.database_url.replace('postgresql+asyncpg://', 'postgresql+psycopg://', 1)
 
 
 @lru_cache
