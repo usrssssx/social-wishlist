@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -21,6 +21,32 @@ def _to_decimal(value: Decimal | None) -> Decimal:
     if value is None:
         return ZERO
     return Decimal(value).quantize(Decimal('0.01'))
+
+
+def is_deadline_passed(event_date: date | None) -> bool:
+    if not event_date:
+        return False
+    return date.today() > event_date
+
+
+def collection_status(
+    *,
+    allow_contributions: bool,
+    goal_amount: Decimal,
+    contributed: Decimal,
+    deadline_passed: bool,
+) -> str:
+    if not allow_contributions:
+        return 'not_applicable'
+    if goal_amount <= ZERO:
+        return 'open'
+    if contributed >= goal_amount:
+        return 'funded'
+    if deadline_passed and contributed > ZERO:
+        return 'underfunded'
+    if deadline_passed and contributed == ZERO:
+        return 'deadline_passed'
+    return 'open'
 
 
 async def generate_share_token(db: AsyncSession) -> str:
@@ -56,9 +82,21 @@ async def item_aggregates(db: AsyncSession, item_id: UUID) -> tuple[Decimal, int
     return _to_decimal(contributed_amount), int(contributors_count or 0), active_reservation
 
 
-async def to_owner_item_view(db: AsyncSession, item: WishlistItem) -> OwnerItemView:
+async def to_owner_item_view(db: AsyncSession, item: WishlistItem, wishlist: Wishlist) -> OwnerItemView:
     contributed, contributors_count, active_reservation = await item_aggregates(db, item.id)
     goal = _to_decimal(item.goal_amount) if item.goal_amount is not None else _to_decimal(item.price)
+    deadline_passed = is_deadline_passed(wishlist.event_date)
+    status = collection_status(
+        allow_contributions=item.allow_contributions,
+        goal_amount=goal,
+        contributed=contributed,
+        deadline_passed=deadline_passed,
+    )
+    contributions_locked = item.allow_contributions and deadline_passed and contributed < goal
+    remaining_amount = None
+    if item.allow_contributions and goal > ZERO:
+        remaining_amount = (goal - contributed if contributed < goal else ZERO).quantize(Decimal('0.01'))
+
     reserved = active_reservation is not None or (item.allow_contributions and goal > ZERO and contributed >= goal)
 
     return OwnerItemView(
@@ -74,17 +112,32 @@ async def to_owner_item_view(db: AsyncSession, item: WishlistItem) -> OwnerItemV
         reserved=reserved,
         contributed_amount=contributed,
         contributors_count=contributors_count,
+        contributions_locked=contributions_locked,
+        collection_status=status,
+        remaining_amount=remaining_amount,
         created_at=item.created_at,
     )
 
 
 async def to_public_item_view(
     db: AsyncSession,
+    wishlist: Wishlist,
     item: WishlistItem,
     current_session: ViewerSession | None,
 ) -> PublicItemView:
     contributed, contributors_count, active_reservation = await item_aggregates(db, item.id)
     goal_amount = _to_decimal(item.goal_amount) if item.goal_amount is not None else _to_decimal(item.price)
+    deadline_passed = is_deadline_passed(wishlist.event_date)
+    status = collection_status(
+        allow_contributions=item.allow_contributions,
+        goal_amount=goal_amount,
+        contributed=contributed,
+        deadline_passed=deadline_passed,
+    )
+    contributions_locked = item.allow_contributions and deadline_passed and contributed < goal_amount
+    remaining_amount = None
+    if item.allow_contributions and goal_amount > ZERO:
+        remaining_amount = (goal_amount - contributed if contributed < goal_amount else ZERO).quantize(Decimal('0.01'))
 
     reserved_by_me = bool(
         current_session
@@ -99,10 +152,11 @@ async def to_public_item_view(
     if item.allow_contributions and goal_amount > ZERO:
         progress_percent = int(min(100, (contributed / goal_amount) * 100))
 
-    can_reserve = item.status.value == 'active' and not reserved and contributed == ZERO
+    can_reserve = item.status.value == 'active' and not deadline_passed and not reserved and contributed == ZERO
     can_contribute = (
         item.status.value == 'active'
         and item.allow_contributions
+        and not contributions_locked
         and not reserved_by_someone
         and (goal_amount == ZERO or contributed < goal_amount)
     )
@@ -124,6 +178,9 @@ async def to_public_item_view(
         contributed_amount=contributed,
         contributors_count=contributors_count,
         progress_percent=progress_percent,
+        contributions_locked=contributions_locked,
+        collection_status=status,
+        remaining_amount=remaining_amount,
     )
 
 
@@ -134,13 +191,14 @@ async def get_owner_wishlist_detail(db: AsyncSession, wishlist: Wishlist) -> Wis
         .order_by(WishlistItem.created_at.desc())
     )
     items = items_result.scalars().all()
-    owner_items = [await to_owner_item_view(db, item) for item in items]
+    owner_items = [await to_owner_item_view(db, item, wishlist) for item in items]
 
     return WishlistOwnerDetail(
         id=wishlist.id,
         title=wishlist.title,
         description=wishlist.description,
         event_date=wishlist.event_date,
+        deadline_passed=is_deadline_passed(wishlist.event_date),
         share_token=wishlist.share_token,
         items=owner_items,
     )
@@ -157,13 +215,14 @@ async def get_public_wishlist_detail(
         .order_by(WishlistItem.created_at.desc())
     )
     items = items_result.scalars().all()
-    public_items = [await to_public_item_view(db, item, current_session) for item in items]
+    public_items = [await to_public_item_view(db, wishlist, item, current_session) for item in items]
 
     return WishlistPublicDetail(
         id=wishlist.id,
         title=wishlist.title,
         description=wishlist.description,
         event_date=wishlist.event_date,
+        deadline_passed=is_deadline_passed(wishlist.event_date),
         share_token=wishlist.share_token,
         items=public_items,
     )

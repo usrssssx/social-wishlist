@@ -5,7 +5,8 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db
@@ -25,6 +26,7 @@ from ..services.wishlist_service import (
     get_public_wishlist_detail,
     get_wishlist_by_token,
     require_viewer_session,
+    is_deadline_passed,
     validate_contribution_amount,
 )
 
@@ -84,41 +86,60 @@ async def reserve_item(
 ) -> ReserveResponse:
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
-
-    item_result = await db.execute(
-        select(WishlistItem).where(
-            and_(WishlistItem.id == item_id, WishlistItem.wishlist_id == wishlist.id)
-        )
-    )
-    item = item_result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Item not found')
-
-    if item.status.value != 'active':
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item is archived')
-
-    active_reservation_result = await db.execute(
-        select(Reservation).where(and_(Reservation.item_id == item.id, Reservation.revoked_at.is_(None)))
-    )
-    active_reservation = active_reservation_result.scalar_one_or_none()
-    if active_reservation:
-        if active_reservation.session_id == session.id:
-            return ReserveResponse(ok=True)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item already reserved')
-
-    contributions_total_result = await db.execute(
-        select(func.coalesce(func.sum(Contribution.amount), 0)).where(Contribution.item_id == item.id)
-    )
-    contributed = Decimal(contributions_total_result.scalar_one()).quantize(Decimal('0.01'))
-    if contributed > ZERO:
+    if is_deadline_passed(wishlist.event_date):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail='Cannot reserve item with active contributions',
+            detail='Wishlist deadline passed. New reservations are closed.',
         )
 
-    reservation = Reservation(item_id=item.id, session_id=session.id)
-    db.add(reservation)
-    await db.commit()
+    try:
+        item_result = await db.execute(
+            select(WishlistItem)
+            .where(and_(WishlistItem.id == item_id, WishlistItem.wishlist_id == wishlist.id))
+            .with_for_update()
+        )
+        item = item_result.scalar_one_or_none()
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Item not found')
+
+        if item.status.value != 'active':
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item is archived')
+
+        active_reservation_result = await db.execute(
+            select(Reservation)
+            .where(and_(Reservation.item_id == item.id, Reservation.revoked_at.is_(None)))
+            .with_for_update()
+        )
+        active_reservation = active_reservation_result.scalar_one_or_none()
+        if active_reservation:
+            if active_reservation.session_id == session.id:
+                await db.rollback()
+                return ReserveResponse(ok=True)
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item already reserved')
+
+        contributions_result = await db.execute(
+            select(Contribution).where(Contribution.item_id == item.id).with_for_update()
+        )
+        contributions = contributions_result.scalars().all()
+        contributed = sum(
+            (Decimal(c.amount).quantize(Decimal('0.01')) for c in contributions),
+            start=ZERO,
+        )
+        if contributed > ZERO:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='Cannot reserve item with active contributions',
+            )
+
+        reservation = Reservation(item_id=item.id, session_id=session.id)
+        db.add(reservation)
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item already reserved') from exc
 
     await hub.publish_update(share_token, 'item_reserved', str(item.id))
     return ReserveResponse(ok=True)
@@ -133,25 +154,29 @@ async def unreserve_item(
 ) -> ReserveResponse:
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
-
-    reservation_result = await db.execute(
-        select(Reservation)
-        .join(WishlistItem, Reservation.item_id == WishlistItem.id)
-        .where(
-            and_(
-                Reservation.item_id == item_id,
-                Reservation.session_id == session.id,
-                Reservation.revoked_at.is_(None),
-                WishlistItem.wishlist_id == wishlist.id,
+    try:
+        reservation_result = await db.execute(
+            select(Reservation)
+            .join(WishlistItem, Reservation.item_id == WishlistItem.id)
+            .where(
+                and_(
+                    Reservation.item_id == item_id,
+                    Reservation.session_id == session.id,
+                    Reservation.revoked_at.is_(None),
+                    WishlistItem.wishlist_id == wishlist.id,
+                )
             )
+            .with_for_update()
         )
-    )
-    reservation = reservation_result.scalar_one_or_none()
-    if not reservation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Reservation not found')
+        reservation = reservation_result.scalar_one_or_none()
+        if not reservation:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Reservation not found')
 
-    reservation.revoked_at = datetime.now(timezone.utc)
-    await db.commit()
+        reservation.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
 
     await hub.publish_update(share_token, 'item_unreserved', str(item_id))
     return ReserveResponse(ok=True)
@@ -167,55 +192,72 @@ async def contribute(
 ) -> ContributionResponse:
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
-
-    item_result = await db.execute(
-        select(WishlistItem).where(
-            and_(WishlistItem.id == item_id, WishlistItem.wishlist_id == wishlist.id)
+    if is_deadline_passed(wishlist.event_date):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Wishlist deadline passed. Contributions are closed.',
         )
-    )
-    item = item_result.scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Item not found')
-
-    if item.status.value != 'active':
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item is archived')
-    if not item.allow_contributions:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Contributions are disabled')
 
     validate_contribution_amount(payload.amount)
+    funded_now = False
 
-    active_reservation_result = await db.execute(
-        select(Reservation).where(and_(Reservation.item_id == item.id, Reservation.revoked_at.is_(None)))
-    )
-    if active_reservation_result.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item already reserved')
+    try:
+        item_result = await db.execute(
+            select(WishlistItem)
+            .where(and_(WishlistItem.id == item_id, WishlistItem.wishlist_id == wishlist.id))
+            .with_for_update()
+        )
+        item = item_result.scalar_one_or_none()
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Item not found')
 
-    total_result = await db.execute(
-        select(func.coalesce(func.sum(Contribution.amount), 0)).where(Contribution.item_id == item.id)
-    )
-    current_total = Decimal(total_result.scalar_one()).quantize(Decimal('0.01'))
+        if item.status.value != 'active':
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item is archived')
+        if not item.allow_contributions:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Contributions are disabled')
 
-    goal_amount = item.goal_amount if item.goal_amount is not None else item.price
-    if goal_amount is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Goal amount is not set')
+        active_reservation_result = await db.execute(
+            select(Reservation)
+            .where(and_(Reservation.item_id == item.id, Reservation.revoked_at.is_(None)))
+            .with_for_update()
+        )
+        if active_reservation_result.scalar_one_or_none() is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Item already reserved')
 
-    goal = Decimal(goal_amount).quantize(Decimal('0.01'))
-    if current_total >= goal:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Goal already reached')
-
-    remaining = (goal - current_total).quantize(Decimal('0.01'))
-    if payload.amount > remaining:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Contribution exceeds remaining amount ({remaining})',
+        contributions_result = await db.execute(
+            select(Contribution).where(Contribution.item_id == item.id).with_for_update()
+        )
+        contributions = contributions_result.scalars().all()
+        current_total = sum(
+            (Decimal(c.amount).quantize(Decimal('0.01')) for c in contributions),
+            start=ZERO,
         )
 
-    contribution = Contribution(item_id=item.id, session_id=session.id, amount=payload.amount)
-    db.add(contribution)
-    await db.commit()
+        goal_amount = item.goal_amount if item.goal_amount is not None else item.price
+        if goal_amount is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Goal amount is not set')
+
+        goal = Decimal(goal_amount).quantize(Decimal('0.01'))
+        if current_total >= goal:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Goal already reached')
+
+        remaining = (goal - current_total).quantize(Decimal('0.01'))
+        if payload.amount > remaining:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'Contribution exceeds remaining amount ({remaining})',
+            )
+
+        contribution = Contribution(item_id=item.id, session_id=session.id, amount=payload.amount)
+        db.add(contribution)
+        funded_now = payload.amount == remaining
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
 
     await hub.publish_update(share_token, 'item_contribution', str(item.id))
-    if payload.amount == remaining:
+    if funded_now:
         await hub.publish_update(share_token, 'item_funded', str(item.id))
 
     return ContributionResponse(ok=True)

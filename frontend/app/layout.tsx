@@ -1,19 +1,45 @@
 import type { Metadata } from 'next';
-import { Manrope, Space_Grotesk } from 'next/font/google';
+import { Playfair_Display, DM_Sans, DM_Mono } from 'next/font/google';
 import './globals.css';
 
-const manrope = Manrope({ subsets: ['latin', 'cyrillic'], variable: '--font-body' });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-heading' });
+const playfair = Playfair_Display({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-heading',
+  weight: ['400', '700', '900']
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-body',
+  weight: ['300', '400', '500', '600']
+});
+
+const dmMono = DM_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500']
+});
 
 export const metadata: Metadata = {
-  title: 'Social Wish List',
+  title: 'Wishlist — делитесь желаниями',
   description: 'Социальный вишлист с бронированием и совместными подарками'
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru">
-      <body className={`${manrope.variable} ${spaceGrotesk.variable}`}>{children}</body>
+      <body className={`${playfair.variable} ${dmSans.variable} ${dmMono.variable}`}>
+        <nav className="navbar">
+          <div className="navbar-brand">
+            <span className="dot" />
+            Wishlist
+          </div>
+          <span style={{ fontSize: '.82rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+            ✦ делитесь желаниями
+          </span>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

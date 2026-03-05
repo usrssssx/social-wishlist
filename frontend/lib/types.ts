@@ -35,6 +35,9 @@ export type OwnerItem = {
   reserved: boolean;
   contributed_amount: string;
   contributors_count: number;
+  contributions_locked: boolean;
+  collection_status: 'not_applicable' | 'open' | 'funded' | 'underfunded' | 'deadline_passed';
+  remaining_amount: string | null;
   created_at: string;
 };
 
@@ -43,6 +46,7 @@ export type WishlistOwnerDetail = {
   title: string;
   description: string;
   event_date: string | null;
+  deadline_passed: boolean;
   share_token: string;
   items: OwnerItem[];
 };
@@ -64,6 +68,9 @@ export type PublicItem = {
   contributed_amount: string;
   contributors_count: number;
   progress_percent: number;
+  contributions_locked: boolean;
+  collection_status: 'not_applicable' | 'open' | 'funded' | 'underfunded' | 'deadline_passed';
+  remaining_amount: string | null;
 };
 
 export type WishlistPublicDetail = {
@@ -71,6 +78,7 @@ export type WishlistPublicDetail = {
   title: string;
   description: string;
   event_date: string | null;
+  deadline_passed: boolean;
   share_token: string;
   items: PublicItem[];
 };

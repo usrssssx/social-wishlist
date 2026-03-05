@@ -86,6 +86,9 @@ class OwnerItemView(BaseModel):
     reserved: bool
     contributed_amount: Decimal
     contributors_count: int
+    contributions_locked: bool
+    collection_status: str
+    remaining_amount: Decimal | None
     created_at: datetime
 
 
@@ -94,6 +97,7 @@ class WishlistOwnerDetail(BaseModel):
     title: str
     description: str
     event_date: date | None
+    deadline_passed: bool
     share_token: str
     items: list[OwnerItemView]
 
@@ -124,6 +128,9 @@ class PublicItemView(BaseModel):
     contributed_amount: Decimal
     contributors_count: int
     progress_percent: int
+    contributions_locked: bool
+    collection_status: str
+    remaining_amount: Decimal | None
 
 
 class WishlistPublicDetail(BaseModel):
@@ -131,6 +138,7 @@ class WishlistPublicDetail(BaseModel):
     title: str
     description: str
     event_date: date | None
+    deadline_passed: bool
     share_token: str
     items: list[PublicItemView]
 

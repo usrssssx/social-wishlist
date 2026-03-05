@@ -5,7 +5,20 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,7 +97,15 @@ class ViewerSession(Base):
 
 class Reservation(Base):
     __tablename__ = 'reservations'
-    __table_args__ = (UniqueConstraint('item_id', 'session_id', name='uq_item_session_reservation'),)
+    __table_args__ = (
+        UniqueConstraint('item_id', 'session_id', name='uq_item_session_reservation'),
+        Index(
+            'uq_active_item_reservation',
+            'item_id',
+            unique=True,
+            postgresql_where=text('revoked_at IS NULL'),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('wishlist_items.id', ondelete='CASCADE'), index=True)
