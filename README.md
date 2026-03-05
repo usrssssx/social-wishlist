@@ -107,6 +107,9 @@ docker compose up -d --build
 - Для Resend webhook событий доставки/отказов задайте `RESEND_WEBHOOK_SECRET` и подключите endpoint `POST /api/webhooks/resend`.
 - При временных сбоях email-провайдера backend делает повторные попытки отправки (`EMAIL_SEND_RETRIES`).
 - Для защиты от ботов можно включить Turnstile: `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend).
+- Для production с Turnstile обязательно задайте `CAPTCHA_EXPECTED_HOSTNAME` (например, `swl-frontend.onrender.com`).
+- Для production тестовые ключи Turnstile запрещены по умолчанию (`ALLOW_TEST_CAPTCHA_IN_PRODUCTION=false`).
+- Проверка готовности окружения: `GET /health/readiness`.
 
 ## Проверка realtime
 
@@ -119,6 +122,25 @@ docker compose up -d --build
 - Скрипт: `scripts/smoke_prod.sh`
 - Чеклист: `docs/production-smoke.md`
 - Алерты и наблюдаемость: `docs/alerts.md`
+- Backup/restore: `docs/backup-restore.md`
+- GitHub Actions smoke: `.github/workflows/production-smoke.yml`
+
+## Backup и восстановление БД
+
+Перед рискованными изменениями схемы/данных:
+
+```bash
+DATABASE_URL=postgresql://... ./scripts/db_backup.sh
+```
+
+Тестовый restore:
+
+```bash
+DATABASE_URL=postgresql://... \
+DUMP_FILE=./backups/<dump>.dump \
+FORCE_RESTORE=true \
+./scripts/db_restore.sh
+```
 
 ## Деплой
 
@@ -135,8 +157,10 @@ docker compose up -d --build
 5. В frontend service задайте `NEXT_PUBLIC_API_URL=<backend-public-url>` и redeploy frontend.
 6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
 7. Если включаете CAPTCHA: задайте `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), затем redeploy обоих сервисов.
-8. Для email-доставки через Resend задайте `RESEND_API_KEY` в backend service.
-9. Для мониторинга delivery/bounce в Resend Webhooks укажите URL:
+8. Для Turnstile в backend задайте `CAPTCHA_EXPECTED_HOSTNAME=<frontend-host-without-https>`.
+9. Убедитесь, что `/health/readiness` возвращает `ready=true`.
+10. Для email-доставки через Resend задайте `RESEND_API_KEY` в backend service.
+11. Для мониторинга delivery/bounce в Resend Webhooks укажите URL:
    `https://<backend>/api/webhooks/resend`
    и заголовок `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
 

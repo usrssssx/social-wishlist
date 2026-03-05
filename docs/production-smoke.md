@@ -28,6 +28,18 @@ CAPTCHA_TOKEN=<turnstile_token_if_enabled> \
 ## Критерии "деплой ок"
 
 - `/health` возвращает `status=ok` и `db=true`.
+- `/health/readiness` возвращает `ready=true`.
 - Ошибки в UI отображаются читабельно на русском.
 - Нет 5xx в backend логах на ключевом пользовательском пути.
 - Realtime работает в двух вкладках стабильно.
+
+## GitHub Actions
+
+Для автопроверки после пуша в `main` настроить:
+
+- Repo variable `PROD_BACKEND_URL`
+- Repo variable `PROD_FRONTEND_URL`
+- Repo secret `PROD_SHARE_TOKEN` (опционально, для guest smoke)
+- Repo secret `PROD_CAPTCHA_TOKEN` (опционально)
+
+Workflow: `.github/workflows/production-smoke.yml`

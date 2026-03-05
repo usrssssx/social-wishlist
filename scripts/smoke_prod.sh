@@ -40,10 +40,10 @@ print(value)
 PY
 }
 
-echo "[1/4] Frontend availability"
+echo "[1/5] Frontend availability"
 require_http_ok "${FRONTEND_URL}"
 
-echo "[2/4] Backend health"
+echo "[2/5] Backend health"
 health_json="$(curl -sS "${BACKEND_URL}/health")"
 status="$(printf '%s' "$health_json" | json_get status || true)"
 db_ok="$(printf '%s' "$health_json" | json_get db || true)"
@@ -53,7 +53,16 @@ if [[ "$status" != "ok" || "$db_ok" != "True" ]]; then
 fi
 echo "OK   /health status=${status} db=${db_ok}"
 
-echo "[3/4] Public API base check"
+echo "[3/5] Backend readiness"
+readiness_json="$(curl -sS "${BACKEND_URL}/health/readiness")"
+ready="$(printf '%s' "$readiness_json" | json_get ready || true)"
+if [[ "$ready" != "True" ]]; then
+  echo "FAIL readiness check: $readiness_json"
+  exit 1
+fi
+echo "OK   /health/readiness ready=${ready}"
+
+echo "[4/5] Public API base check"
 if [[ -n "${SHARE_TOKEN:-}" ]]; then
   code="$(curl -sS -o /tmp/swl_public.json -w "%{http_code}" "${BACKEND_URL}/api/public/w/${SHARE_TOKEN}")"
   if [[ "$code" -ge 400 ]]; then
@@ -66,7 +75,7 @@ else
   echo "SKIP public check (SHARE_TOKEN is not set)"
 fi
 
-echo "[4/4] Guest session smoke"
+echo "[5/5] Guest session smoke"
 if [[ -n "${SHARE_TOKEN:-}" ]]; then
   payload="$(python3 - <<'PY'
 import json

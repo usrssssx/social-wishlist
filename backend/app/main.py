@@ -43,6 +43,56 @@ register_error_handlers(app)
 app.add_middleware(SlowAPIMiddleware)
 
 
+def _captcha_ready() -> tuple[bool, str]:
+    secret = (settings.captcha_secret_key or '').strip()
+    if settings.environment != 'production':
+        return True, 'not_required_outside_production'
+    if not secret:
+        return False, 'captcha_secret_key_missing'
+    if secret == '1x0000000000000000000000000000000AA' and not settings.allow_test_captcha_in_production:
+        return False, 'captcha_test_key_in_production'
+    if not settings.captcha_expected_hostname:
+        return False, 'captcha_expected_hostname_missing'
+    return True, 'ok'
+
+
+def _email_ready() -> tuple[bool, str]:
+    has_resend = bool((settings.resend_api_key or '').strip())
+    has_smtp = bool((settings.smtp_host or '').strip())
+    if settings.environment != 'production':
+        return True, 'not_required_outside_production'
+    if not has_resend and not has_smtp:
+        return False, 'email_provider_missing'
+    if has_resend and not (settings.resend_webhook_secret or '').strip():
+        return False, 'resend_webhook_secret_missing'
+    return True, 'ok'
+
+
+def _alerts_ready() -> tuple[bool, str]:
+    if settings.environment != 'production':
+        return True, 'not_required_outside_production'
+    if not (settings.sentry_dsn or '').strip():
+        return False, 'sentry_dsn_missing'
+    return True, 'ok'
+
+
+def _readiness_payload() -> dict[str, str | bool]:
+    captcha_ok, captcha_reason = _captcha_ready()
+    email_ok, email_reason = _email_ready()
+    alerts_ok, alerts_reason = _alerts_ready()
+    # Alerts are advisory for MVP readiness; auth/captcha/email are blocking.
+    ready = captcha_ok and email_ok
+    return {
+        'ready': ready,
+        'captcha_ok': captcha_ok,
+        'captcha_reason': captcha_reason,
+        'email_ok': email_ok,
+        'email_reason': email_reason,
+        'alerts_ok': alerts_ok,
+        'alerts_reason': alerts_reason,
+    }
+
+
 @app.get('/health')
 async def health() -> dict[str, str | bool | int]:
     metrics = monitor.snapshot()
@@ -53,14 +103,16 @@ async def health() -> dict[str, str | bool | int]:
     except Exception:
         db_ok = False
     overloaded = metrics.errors_5xx_last_5m >= settings.health_5xx_threshold_5m
+    readiness = _readiness_payload()
     status_value = 'ok'
-    if not db_ok or overloaded:
+    if not db_ok or overloaded or not bool(readiness['ready']):
         status_value = 'degraded'
     return {
         'status': status_value,
         'db': db_ok,
         'errors_5xx_last_5m': metrics.errors_5xx_last_5m,
         'requests_last_5m': metrics.requests_last_5m,
+        'readiness': readiness['ready'],
         'environment': settings.environment,
         'timestamp': datetime.now(timezone.utc).isoformat(),
     }
@@ -74,6 +126,11 @@ async def health_metrics() -> dict[str, int]:
         'errors_4xx_last_5m': metrics.errors_4xx_last_5m,
         'errors_5xx_last_5m': metrics.errors_5xx_last_5m,
     }
+
+
+@app.get('/health/readiness')
+async def health_readiness() -> dict[str, str | bool]:
+    return _readiness_payload()
 
 
 @app.middleware('http')

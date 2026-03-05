@@ -1,0 +1,55 @@
+name: Production Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_url:
+        description: Backend URL (optional)
+        required: false
+      frontend_url:
+        description: Frontend URL (optional)
+        required: false
+      share_token:
+        description: Public share token for guest smoke (optional)
+        required: false
+      captcha_token:
+        description: Turnstile token for guest smoke (optional)
+        required: false
+  push:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      PROD_BACKEND_URL: ${{ vars.PROD_BACKEND_URL }}
+      PROD_FRONTEND_URL: ${{ vars.PROD_FRONTEND_URL }}
+      PROD_SHARE_TOKEN: ${{ secrets.PROD_SHARE_TOKEN }}
+      PROD_CAPTCHA_TOKEN: ${{ secrets.PROD_CAPTCHA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve runtime variables
+        id: envs
+        run: |
+          BACKEND_URL="${{ github.event.inputs.backend_url }}"
+          FRONTEND_URL="${{ github.event.inputs.frontend_url }}"
+          SHARE_TOKEN="${{ github.event.inputs.share_token }}"
+          CAPTCHA_TOKEN="${{ github.event.inputs.captcha_token }}"
+
+          BACKEND_URL="${BACKEND_URL:-${PROD_BACKEND_URL:-https://swl-backend.onrender.com}}"
+          FRONTEND_URL="${FRONTEND_URL:-${PROD_FRONTEND_URL:-https://swl-frontend.onrender.com}}"
+          SHARE_TOKEN="${SHARE_TOKEN:-${PROD_SHARE_TOKEN:-}}"
+          CAPTCHA_TOKEN="${CAPTCHA_TOKEN:-${PROD_CAPTCHA_TOKEN:-}}"
+
+          {
+            echo "BACKEND_URL=${BACKEND_URL}"
+            echo "FRONTEND_URL=${FRONTEND_URL}"
+            echo "SHARE_TOKEN=${SHARE_TOKEN}"
+            echo "CAPTCHA_TOKEN=${CAPTCHA_TOKEN}"
+          } >> "$GITHUB_ENV"
+
+      - name: Run production smoke
+        run: |
+          chmod +x scripts/smoke_prod.sh
+          ./scripts/smoke_prod.sh

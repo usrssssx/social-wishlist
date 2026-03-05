@@ -5,7 +5,10 @@
 1. Healthcheck alert:
    - URL: `/health`
    - Trigger: `status != ok` или `db != true`.
-2. Error-rate alert:
+2. Readiness alert:
+   - URL: `/health/readiness`
+   - Trigger: `ready != true`.
+3. Error-rate alert:
    - URL: `/health/metrics`
    - Trigger: `errors_5xx_last_5m >= 30`.
 

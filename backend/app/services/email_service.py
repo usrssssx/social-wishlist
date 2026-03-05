@@ -52,6 +52,8 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> EmailSendResult:
     timeout = int(settings.email_send_timeout_seconds)
 
     if not settings.smtp_host:
+        if settings.environment == 'production':
+            raise RuntimeError('Email provider is not configured')
         logger.warning('Email provider is not configured. Email to %s with subject "%s": %s', to_email, subject, body)
         return EmailSendResult(provider='noop', message_id=None)
 

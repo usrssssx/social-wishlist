@@ -34,6 +34,10 @@ services:
         sync: false
       - key: CAPTCHA_VERIFY_URL
         value: https://challenges.cloudflare.com/turnstile/v0/siteverify
+      - key: CAPTCHA_EXPECTED_HOSTNAME
+        sync: false
+      - key: ALLOW_TEST_CAPTCHA_IN_PRODUCTION
+        value: false
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_WEBHOOK_SECRET

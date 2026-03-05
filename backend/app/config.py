@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     captcha_provider: str = 'turnstile'
     captcha_secret_key: str | None = None
     captcha_verify_url: str = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+    captcha_expected_hostname: str | None = None
+    allow_test_captcha_in_production: bool = False
 
     @field_validator('database_url')
     @classmethod
