@@ -102,7 +102,8 @@ docker compose up -d --build
 - Вход запрещён для неподтверждённых email.
 - Доступен reset password flow через email.
 - На auth и публичные write-операции включён rate limit.
-- Для production рекомендуется заполнить `SENTRY_DSN` и SMTP-переменные из `backend/.env.example`.
+- Для production рекомендуется заполнить `SENTRY_DSN` и email-переменные из `backend/.env.example`.
+- Если задан `RESEND_API_KEY`, backend отправляет письма через Resend API (приоритетно); иначе использует SMTP.
 - Для защиты от ботов можно включить Turnstile: `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend).
 
 ## Проверка realtime
@@ -126,6 +127,7 @@ docker compose up -d --build
 5. В frontend service задайте `NEXT_PUBLIC_API_URL=<backend-public-url>` и redeploy frontend.
 6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
 7. Если включаете CAPTCHA: задайте `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), затем redeploy обоих сервисов.
+8. Для email-доставки через Resend задайте `RESEND_API_KEY` в backend service.
 
 ## CI
 

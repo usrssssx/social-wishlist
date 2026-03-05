@@ -5,6 +5,8 @@ import logging
 import smtplib
 from email.message import EmailMessage
 
+import httpx
+
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -12,8 +14,23 @@ settings = get_settings()
 
 
 def _send_email_sync(to_email: str, subject: str, body: str) -> None:
+    if settings.resend_api_key:
+        payload = {
+            'from': settings.smtp_from_email,
+            'to': [to_email],
+            'subject': subject,
+            'text': body,
+        }
+        headers = {
+            'Authorization': f'Bearer {settings.resend_api_key}',
+            'Content-Type': 'application/json',
+        }
+        response = httpx.post(settings.resend_api_url, json=payload, headers=headers, timeout=15.0)
+        response.raise_for_status()
+        return
+
     if not settings.smtp_host:
-        logger.warning('SMTP is not configured. Email to %s with subject "%s": %s', to_email, subject, body)
+        logger.warning('Email provider is not configured. Email to %s with subject "%s": %s', to_email, subject, body)
         return
 
     message = EmailMessage()

@@ -34,6 +34,8 @@ services:
         sync: false
       - key: CAPTCHA_VERIFY_URL
         value: https://challenges.cloudflare.com/turnstile/v0/siteverify
+      - key: RESEND_API_KEY
+        sync: false
 
   - type: web
     name: swl-frontend
