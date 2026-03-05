@@ -81,7 +81,7 @@ def _translate_english_detail(detail: str, status_code: int) -> str:
 
 
 def _format_loc(loc: Any) -> str:
-    if not isinstance(loc, list) or not loc:
+    if not isinstance(loc, (list, tuple)) or not loc:
         return ''
 
     normalized = '.'.join(str(x) for x in loc)
