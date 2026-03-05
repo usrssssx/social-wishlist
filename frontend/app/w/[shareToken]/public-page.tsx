@@ -48,6 +48,12 @@ export default function PublicWishlistPage() {
     return () => socket.close();
   }, [shareToken]);
 
+  useEffect(() => {
+    if (viewerToken) {
+      setFlash('');
+    }
+  }, [viewerToken]);
+
   const stats = useMemo(() => {
     if (!wishlist) return { total: 0, reserved: 0 };
     return { total: wishlist.items.length, reserved: wishlist.items.filter(i => i.reserved).length };
@@ -69,6 +75,7 @@ export default function PublicWishlistPage() {
       setViewerToken(shareToken, session.session_token);
       setViewerTokenState(session.session_token);
       setViewerName('');
+      setFlash('');
       await load(session.session_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось создать сессию');
@@ -82,6 +89,7 @@ export default function PublicWishlistPage() {
 
   async function reserve(item: PublicItem) {
     if (!viewerToken) { setFlash('Введите имя ниже, чтобы забронировать подарок.'); return; }
+    setFlash('');
     setError('');
     try {
       if (item.reserved_by_me) {
@@ -97,6 +105,7 @@ export default function PublicWishlistPage() {
 
   async function contribute(item: PublicItem) {
     if (!viewerToken) { setFlash('Введите имя ниже, чтобы внести вклад.'); return; }
+    setFlash('');
     const amount = Number(pendingAmounts[item.id]);
     if (!amount || Number.isNaN(amount)) { setError('Введите сумму вклада'); return; }
     setError('');
