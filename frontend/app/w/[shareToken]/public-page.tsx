@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 
 import TurnstileCaptcha from '@/components/ui/turnstile-captcha';
-import { api, getWsUrl } from '@/lib/api';
+import { api, getReadableError, getWsUrl } from '@/lib/api';
 import type { PublicItem, WishlistPublicDetail } from '@/lib/types';
 import { formatMoney, getViewerToken, setViewerToken } from '@/lib/utils';
 
@@ -30,7 +30,7 @@ export default function PublicWishlistPage() {
       const data = await api.getPublicWishlist(shareToken, token);
       setWishlist(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить wishlist');
+      setError(getReadableError(err, 'Не удалось загрузить wishlist'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ export default function PublicWishlistPage() {
       setFlash('');
       await load(session.session_token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось создать сессию');
+      setError(getReadableError(err, 'Не удалось создать сессию'));
     } finally {
       if (shouldResetCaptcha) {
         setCaptchaToken(null);
@@ -99,7 +99,7 @@ export default function PublicWishlistPage() {
       }
       await load(viewerToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось обновить бронь');
+      setError(getReadableError(err, 'Не удалось обновить бронь'));
     }
   }
 
@@ -114,7 +114,7 @@ export default function PublicWishlistPage() {
       setPendingAmounts(prev => ({ ...prev, [item.id]: '' }));
       await load(viewerToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось внести вклад');
+      setError(getReadableError(err, 'Не удалось внести вклад'));
     }
   }
 

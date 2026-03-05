@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { api } from '@/lib/api';
+import { api, getReadableError } from '@/lib/api';
 import type { WishlistSummary } from '@/lib/types';
 import { clearAuthToken, formatMoney, getAuthToken } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ export default function DashboardPage() {
       const data = await api.listWishlists(authToken);
       setWishlists(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить список');
+      setError(getReadableError(err, 'Не удалось загрузить список'));
     } finally {
       setLoading(false);
     }
@@ -49,7 +49,7 @@ export default function DashboardPage() {
       setShowForm(false);
       await loadData(token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось создать wishlist');
+      setError(getReadableError(err, 'Не удалось создать wishlist'));
     }
   }
 

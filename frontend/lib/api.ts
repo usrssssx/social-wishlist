@@ -24,7 +24,7 @@ const LEGACY_ERROR_MAP: Record<string, string> = {
   'Invalid or expired token': 'Ссылка недействительна или устарела.',
 };
 
-function formatApiError(errorPayload: unknown, statusCode: number): string {
+function fallbackByStatusCode(statusCode: number): string {
   const fallbackByStatus: Record<number, string> = {
     400: 'Проверьте введенные данные.',
     401: 'Нужно войти в систему.',
@@ -37,41 +37,115 @@ function formatApiError(errorPayload: unknown, statusCode: number): string {
     502: 'Сервис временно недоступен. Попробуйте чуть позже.',
     503: 'Сервис временно недоступен. Попробуйте чуть позже.'
   };
-  const fallback = fallbackByStatus[statusCode] ?? 'Произошла ошибка. Попробуйте снова.';
+  return fallbackByStatus[statusCode] ?? 'Произошла ошибка. Попробуйте снова.';
+}
+
+function mapLegacyError(rawMessage: string, statusCode: number): string {
+  const message = rawMessage.trim();
+  if (message in LEGACY_ERROR_MAP) {
+    return LEGACY_ERROR_MAP[message];
+  }
+
+  if (message.startsWith('Minimal contribution amount is ')) {
+    const value = message.replace('Minimal contribution amount is ', '');
+    return `Минимальный вклад: ${value}.`;
+  }
+
+  const remainingMatch = message.match(/^Contribution exceeds remaining amount \((.+)\)$/);
+  if (remainingMatch?.[1]) {
+    return `Сумма вклада больше остатка сбора. Осталось: ${remainingMatch[1]}.`;
+  }
+
+  if (message === '[object Object]') {
+    return fallbackByStatusCode(statusCode);
+  }
+
+  return message || fallbackByStatusCode(statusCode);
+}
+
+function formatValidationDetails(items: unknown[]): string | null {
+  const messages = items
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const msg = (item as { msg?: unknown }).msg;
+      const loc = (item as { loc?: unknown }).loc;
+      if (typeof msg !== 'string') return null;
+      if (!Array.isArray(loc)) return msg;
+      const locPath = loc.map((x) => String(x)).join('.');
+      return `${msg} (${locPath})`;
+    })
+    .filter((x): x is string => Boolean(x));
+
+  if (messages.length === 0) {
+    return null;
+  }
+  return messages.join('; ');
+}
+
+function extractDetailMessage(detail: unknown, statusCode: number): string | null {
+  if (typeof detail === 'string') {
+    return mapLegacyError(detail, statusCode);
+  }
+
+  if (Array.isArray(detail)) {
+    return formatValidationDetails(detail);
+  }
+
+  if (!detail || typeof detail !== 'object') {
+    return null;
+  }
+
+  const objectDetail = detail as Record<string, unknown>;
+  for (const key of ['detail', 'message', 'error', 'reason']) {
+    const nested = extractDetailMessage(objectDetail[key], statusCode);
+    if (nested) return nested;
+  }
+
+  for (const value of Object.values(objectDetail)) {
+    if (typeof value === 'string' && value.trim()) {
+      return mapLegacyError(value, statusCode);
+    }
+  }
+
+  return null;
+}
+
+export function getReadableError(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (message && message !== '[object Object]') {
+      return message;
+    }
+  }
+
+  if (typeof error === 'string') {
+    const message = error.trim();
+    if (message && message !== '[object Object]') {
+      return message;
+    }
+  }
+
+  if (error && typeof error === 'object') {
+    const parsed = extractDetailMessage(error, 400);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function formatApiError(errorPayload: unknown, statusCode: number): string {
+  const fallback = fallbackByStatusCode(statusCode);
 
   if (!errorPayload || typeof errorPayload !== 'object') {
     return fallback;
   }
 
   const detail = (errorPayload as { detail?: unknown }).detail;
-  if (typeof detail === 'string') {
-    return LEGACY_ERROR_MAP[detail] ?? detail;
-  }
-
-  if (Array.isArray(detail)) {
-    const messages = detail
-      .map((item) => {
-        if (!item || typeof item !== 'object') return null;
-        const msg = (item as { msg?: unknown }).msg;
-        const loc = (item as { loc?: unknown }).loc;
-        if (typeof msg !== 'string') return null;
-        if (!Array.isArray(loc)) return msg;
-        const locPath = loc.map((x) => String(x)).join('.');
-        return `${msg} (${locPath})`;
-      })
-      .filter((x): x is string => Boolean(x));
-
-    if (messages.length > 0) {
-      return messages.join('; ');
-    }
-  }
-
-  if (detail !== undefined) {
-    try {
-      return JSON.stringify(detail);
-    } catch {
-      return fallback;
-    }
+  const parsedMessage = extractDetailMessage(detail, statusCode);
+  if (parsedMessage) {
+    return parsedMessage;
   }
 
   return fallback;
@@ -98,15 +172,28 @@ async function request<T>(
     headers['X-Viewer-Token'] = options.viewerToken;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    cache: 'no-store'
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      cache: 'no-store'
+    });
+  } catch {
+    throw new Error('Не удалось подключиться к серверу. Проверьте интернет и попробуйте снова.');
+  }
 
   if (!response.ok) {
-    const errorPayload = await response.json().catch(() => null);
+    const responseForText = response.clone();
+    const errorPayload = await response
+      .json()
+      .catch(async () => {
+        const rawText = await responseForText
+          .text()
+          .catch(() => '');
+        return rawText ? { detail: rawText } : null;
+      });
     const message = formatApiError(errorPayload, response.status);
     throw new Error(message);
   }

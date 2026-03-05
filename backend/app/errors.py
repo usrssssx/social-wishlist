@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -75,8 +76,21 @@ def _russian_for_status(status_code: int) -> str:
 
 
 def _translate_english_detail(detail: str, status_code: int) -> str:
-    if detail in _DETAIL_MAP:
-        return _DETAIL_MAP[detail]
+    normalized = detail.strip()
+    if normalized in _DETAIL_MAP:
+        return _DETAIL_MAP[normalized]
+
+    minimal_amount_match = re.fullmatch(r'Minimal contribution amount is (.+)', normalized)
+    if minimal_amount_match:
+        return f'Минимальный вклад: {minimal_amount_match.group(1)}.'
+
+    remaining_match = re.fullmatch(r'Contribution exceeds remaining amount \((.+)\)', normalized)
+    if remaining_match:
+        return f'Сумма вклада больше остатка сбора. Осталось: {remaining_match.group(1)}.'
+
+    if re.search(r'[А-Яа-яЁё]', normalized):
+        return normalized
+
     return _russian_for_status(status_code)
 
 
@@ -145,6 +159,12 @@ def _format_validation_errors(errors: list[dict[str, Any]]) -> str:
 def _normalize_detail(detail: Any, status_code: int) -> str:
     if isinstance(detail, str):
         return _translate_english_detail(detail, status_code)
+    if isinstance(detail, dict):
+        for key in ('detail', 'message', 'error'):
+            nested = detail.get(key)
+            if isinstance(nested, str):
+                return _translate_english_detail(nested, status_code)
+        return _russian_for_status(status_code)
     if isinstance(detail, list):
         return _format_validation_errors([x for x in detail if isinstance(x, dict)])
     return _russian_for_status(status_code)

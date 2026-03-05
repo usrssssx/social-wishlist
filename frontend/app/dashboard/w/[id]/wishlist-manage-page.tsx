@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 
-import { api, getWsUrl } from '@/lib/api';
+import { api, getReadableError, getWsUrl } from '@/lib/api';
 import type { WishlistOwnerDetail } from '@/lib/types';
 import { formatMoney, getAuthToken } from '@/lib/utils';
 
@@ -41,7 +41,7 @@ export default function ManageWishlistPage() {
       const data = await api.getWishlist(authToken, params.id);
       setWishlist(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки списка');
+      setError(getReadableError(err, 'Ошибка загрузки списка'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export default function ManageWishlistPage() {
       if (data.url) setProductUrl(data.url);
       setInfo('Данные подтянуты. Проверьте перед сохранением.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось подтянуть данные');
+      setError(getReadableError(err, 'Не удалось подтянуть данные'));
     }
   }
 
@@ -95,7 +95,7 @@ export default function ManageWishlistPage() {
       setTitle(''); setProductUrl(''); setImageUrl('');
       setPrice(''); setGoalAmount(''); setAllowContributions(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось добавить товар');
+      setError(getReadableError(err, 'Не удалось добавить товар'));
     } finally {
       setSaving(false);
     }
@@ -108,7 +108,7 @@ export default function ManageWishlistPage() {
       const updated = await api.deleteItem(token, itemId);
       setWishlist(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось удалить товар');
+      setError(getReadableError(err, 'Не удалось удалить товар'));
     }
   }
 
@@ -153,7 +153,7 @@ export default function ManageWishlistPage() {
       cancelEditItem();
       setInfo('Товар обновлён.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось обновить товар');
+      setError(getReadableError(err, 'Не удалось обновить товар'));
     } finally {
       setEditSaving(false);
     }

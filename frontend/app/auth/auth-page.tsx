@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import TurnstileCaptcha from '@/components/ui/turnstile-captcha';
-import { api } from '@/lib/api';
+import { api, getReadableError } from '@/lib/api';
 import { getAuthToken, setAuthToken } from '@/lib/utils';
 
 type Mode = 'login' | 'register';
@@ -48,7 +48,7 @@ export default function AuthPage() {
           }
         } catch (err) {
           if (!cancelled) {
-            setError(err instanceof Error ? err.message : 'Не удалось подтвердить email');
+            setError(getReadableError(err, 'Не удалось подтвердить email'));
             router.replace('/auth');
           }
         } finally {
@@ -115,7 +115,7 @@ export default function AuthPage() {
       setMode('login');
       setPassword('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка авторизации');
+      setError(getReadableError(err, 'Ошибка авторизации'));
     } finally {
       if (shouldResetCaptcha) {
         setCaptchaToken(null);
@@ -145,7 +145,7 @@ export default function AuthPage() {
       const result = await api.resendVerification(email.trim(), captchaToken);
       setInfo(result.detail);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось отправить письмо');
+      setError(getReadableError(err, 'Не удалось отправить письмо'));
     } finally {
       if (shouldResetCaptcha) {
         setCaptchaToken(null);
@@ -176,7 +176,7 @@ export default function AuthPage() {
       setInfo(result.detail);
       setResetRequested(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось отправить письмо для сброса');
+      setError(getReadableError(err, 'Не удалось отправить письмо для сброса'));
     } finally {
       if (shouldResetCaptcha) {
         setCaptchaToken(null);
