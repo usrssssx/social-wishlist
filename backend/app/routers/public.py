@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ async def public_wishlist(
 async def create_viewer_session(
     request: Request,
     share_token: str,
-    payload: ViewerSessionCreateRequest,
+    payload: ViewerSessionCreateRequest = Body(...),
     db: AsyncSession = Depends(get_db),
 ) -> ViewerSessionResponse:
     await verify_captcha_or_skip(payload.captcha_token, request.client.host if request.client else None)
@@ -199,7 +199,7 @@ async def contribute(
     request: Request,
     share_token: str,
     item_id: UUID,
-    payload: ContributionCreateRequest,
+    payload: ContributionCreateRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ContributionResponse:

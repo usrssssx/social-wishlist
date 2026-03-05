@@ -12,6 +12,46 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
+function formatApiError(errorPayload: unknown, statusCode: number): string {
+  const fallback = `Request failed with status ${statusCode}`;
+  if (!errorPayload || typeof errorPayload !== 'object') {
+    return fallback;
+  }
+
+  const detail = (errorPayload as { detail?: unknown }).detail;
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null;
+        const msg = (item as { msg?: unknown }).msg;
+        const loc = (item as { loc?: unknown }).loc;
+        if (typeof msg !== 'string') return null;
+        if (!Array.isArray(loc)) return msg;
+        const locPath = loc.map((x) => String(x)).join('.');
+        return `${msg} (${locPath})`;
+      })
+      .filter((x): x is string => Boolean(x));
+
+    if (messages.length > 0) {
+      return messages.join('; ');
+    }
+  }
+
+  if (detail !== undefined) {
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+}
+
 async function request<T>(
   path: string,
   options: {
@@ -42,7 +82,7 @@ async function request<T>(
 
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => null);
-    const message = errorPayload?.detail ?? `Request failed with status ${response.status}`;
+    const message = formatApiError(errorPayload, response.status);
     throw new Error(message);
   }
 
