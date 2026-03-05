@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     environment: str = 'development'
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.1
+    alerts_test_token: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

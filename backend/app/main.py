@@ -4,7 +4,7 @@ from time import perf_counter
 from uuid import uuid4
 
 import sentry_sdk
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -131,6 +131,31 @@ async def health_metrics() -> dict[str, int]:
 @app.get('/health/readiness')
 async def health_readiness() -> dict[str, str | bool]:
     return _readiness_payload()
+
+
+@app.post('/health/alerts/test')
+async def health_alerts_test(request: Request) -> dict[str, str]:
+    configured_token = (settings.alerts_test_token or '').strip()
+    if settings.environment == 'production':
+        if not configured_token:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail='Alerts test token is not configured',
+            )
+        provided_token = (request.headers.get('x-alerts-test-token') or '').strip()
+        if provided_token != configured_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid alerts test token')
+
+    if not (settings.sentry_dsn or '').strip():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail='Sentry is not configured')
+
+    marker = f'swl-alerts-smoke-{uuid4().hex[:12]}'
+    try:
+        raise RuntimeError(f'SWL alerts smoke marker={marker}')
+    except RuntimeError as exc:
+        event_id = sentry_sdk.capture_exception(exc)
+    sentry_sdk.flush(timeout=2.0)
+    return {'detail': 'Sentry test event sent', 'event_id': str(event_id or ''), 'marker': marker}
 
 
 @app.middleware('http')

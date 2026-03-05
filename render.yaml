@@ -26,6 +26,8 @@ services:
         sync: false
       - key: ENVIRONMENT
         value: production
+      - key: ALERTS_TEST_TOKEN
+        sync: false
       - key: MIN_CONTRIBUTION_AMOUNT
         value: 100
       - key: CAPTCHA_PROVIDER

@@ -24,6 +24,8 @@ CAPTCHA_TOKEN=<turnstile_token_if_enabled> \
 8. Вкладка B: проверить моментальное обновление статуса брони.
 9. Проверить reset password end-to-end (запрос + письмо + установка нового пароля).
 10. Проверить, что CAPTСHA работает на auth и guest-входе.
+11. Проверить Sentry smoke:
+    `BACKEND_URL=https://... ALERTS_TEST_TOKEN=... ./scripts/sentry_alert_smoke.sh`
 
 ## Критерии "деплой ок"
 
@@ -32,6 +34,7 @@ CAPTCHA_TOKEN=<turnstile_token_if_enabled> \
 - Ошибки в UI отображаются читабельно на русском.
 - Нет 5xx в backend логах на ключевом пользовательском пути.
 - Realtime работает в двух вкладках стабильно.
+- Sentry smoke endpoint возвращает `200` и `event_id`.
 
 ## GitHub Actions
 

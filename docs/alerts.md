@@ -14,9 +14,15 @@
 
 ## Sentry
 
-1. Environment: `production`.
-2. Alert rule: "when event count > 0 in 5m" для `level=error`.
-3. Канал доставки: email/Slack.
+1. В backend env задать:
+   - `SENTRY_DSN=<project_dsn>`
+   - `ALERTS_TEST_TOKEN=<random_secret>`
+2. Environment: `production`.
+3. Alert rule: "when event count > 0 in 5m" для `level=error`.
+4. Канал доставки: email/Slack.
+5. E2E проверка после деплоя:
+   - `BACKEND_URL=https://... ALERTS_TEST_TOKEN=... ./scripts/sentry_alert_smoke.sh`
+   - endpoint: `POST /health/alerts/test` с заголовком `X-Alerts-Test-Token`.
 
 ## Resend (email)
 

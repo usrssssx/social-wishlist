@@ -110,6 +110,7 @@ docker compose up -d --build
 - Для production с Turnstile обязательно задайте `CAPTCHA_EXPECTED_HOSTNAME` (например, `swl-frontend.onrender.com`).
 - Для production тестовые ключи Turnstile запрещены по умолчанию (`ALLOW_TEST_CAPTCHA_IN_PRODUCTION=false`).
 - Проверка готовности окружения: `GET /health/readiness`.
+- Для E2E проверки Sentry-алертов задайте `ALERTS_TEST_TOKEN` и используйте `POST /health/alerts/test`.
 
 ## Проверка realtime
 
@@ -120,6 +121,7 @@ docker compose up -d --build
 ## Production smoke после деплоя
 
 - Скрипт: `scripts/smoke_prod.sh`
+- Sentry smoke: `scripts/sentry_alert_smoke.sh`
 - Чеклист: `docs/production-smoke.md`
 - Алерты и наблюдаемость: `docs/alerts.md`
 - Backup/restore: `docs/backup-restore.md`
@@ -163,6 +165,8 @@ FORCE_RESTORE=true \
 11. Для мониторинга delivery/bounce в Resend Webhooks укажите URL:
    `https://<backend>/api/webhooks/resend`
    и заголовок `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
+12. Для проверки Sentry задайте `SENTRY_DSN` и `ALERTS_TEST_TOKEN`, затем выполните:
+   `BACKEND_URL=https://<backend> ALERTS_TEST_TOKEN=<token> ./scripts/sentry_alert_smoke.sh`.
 
 ## CI
 
