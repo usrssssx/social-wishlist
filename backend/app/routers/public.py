@@ -59,7 +59,6 @@ async def public_wishlist(
 
 
 @router.post('/w/{share_token}/sessions', response_model=ViewerSessionResponse)
-@limiter.limit('20/hour')
 async def create_viewer_session(
     request: Request,
     payload: ViewerSessionCreateRequest,
@@ -194,7 +193,6 @@ async def unreserve_item(
 
 
 @router.post('/w/{share_token}/items/{item_id}/contributions', response_model=ContributionResponse)
-@limiter.limit('60/hour')
 async def contribute(
     request: Request,
     payload: ContributionCreateRequest,
