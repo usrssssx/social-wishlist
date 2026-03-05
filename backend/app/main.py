@@ -44,7 +44,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 
 @app.get('/health')
-async def health() -> dict[str, str | bool]:
+async def health() -> dict[str, str | bool | int]:
     metrics = monitor.snapshot()
     db_ok = True
     try:
