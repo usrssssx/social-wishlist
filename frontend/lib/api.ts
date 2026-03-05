@@ -12,15 +12,40 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
+const LEGACY_ERROR_MAP: Record<string, string> = {
+  'Request failed with status 500': 'Сервер временно недоступен. Попробуйте чуть позже.',
+  'Request failed with status 429': 'Слишком много попыток. Подождите немного и попробуйте снова.',
+  'Captcha token required': 'Подтвердите, что вы не робот.',
+  'Invalid captcha token': 'Проверка CAPTCHA не пройдена. Попробуйте еще раз.',
+  'Captcha verification failed': 'Не удалось проверить CAPTCHA. Попробуйте еще раз.',
+  'Invalid credentials': 'Неверный email или пароль.',
+  'Email already in use': 'Этот email уже занят.',
+  'Email is not verified. Please confirm email before login.': 'Подтвердите email перед входом.',
+  'Invalid or expired token': 'Ссылка недействительна или устарела.',
+};
+
 function formatApiError(errorPayload: unknown, statusCode: number): string {
-  const fallback = `Request failed with status ${statusCode}`;
+  const fallbackByStatus: Record<number, string> = {
+    400: 'Проверьте введенные данные.',
+    401: 'Нужно войти в систему.',
+    403: 'Доступ запрещен.',
+    404: 'Ничего не найдено.',
+    409: 'Сейчас это действие недоступно.',
+    422: 'Проверьте, как заполнены поля формы.',
+    429: 'Слишком много попыток. Подождите немного и попробуйте снова.',
+    500: 'Сервер временно недоступен. Попробуйте чуть позже.',
+    502: 'Сервис временно недоступен. Попробуйте чуть позже.',
+    503: 'Сервис временно недоступен. Попробуйте чуть позже.'
+  };
+  const fallback = fallbackByStatus[statusCode] ?? 'Произошла ошибка. Попробуйте снова.';
+
   if (!errorPayload || typeof errorPayload !== 'object') {
     return fallback;
   }
 
   const detail = (errorPayload as { detail?: unknown }).detail;
   if (typeof detail === 'string') {
-    return detail;
+    return LEGACY_ERROR_MAP[detail] ?? detail;
   }
 
   if (Array.isArray(detail)) {

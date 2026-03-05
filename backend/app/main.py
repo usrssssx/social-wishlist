@@ -4,13 +4,12 @@ import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.fastapi import FastApiIntegration
-from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi import _rate_limit_exceeded_handler
 from sqlalchemy import text
 
 from .config import get_settings
 from .db import AsyncSessionLocal
+from .errors import register_error_handlers
 from .rate_limit import limiter
 from .routers import auth, public, wishlists
 from .services.realtime import hub
@@ -35,7 +34,7 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+register_error_handlers(app)
 app.add_middleware(SlowAPIMiddleware)
 
 
