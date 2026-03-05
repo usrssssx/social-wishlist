@@ -12,6 +12,19 @@
    - URL: `/health/metrics`
    - Trigger: `errors_5xx_last_5m >= 30`.
 
+## On-call notifications
+
+1. Workflow: `.github/workflows/oncall-healthcheck.yml` (каждые 5 минут).
+2. Каналы:
+   - `ONCALL_SLACK_WEBHOOK_URL` (Slack)
+   - `ONCALL_TELEGRAM_BOT_TOKEN` + `ONCALL_TELEGRAM_CHAT_ID` (Telegram)
+   - `ONCALL_WEBHOOK_URL` (generic webhook, опционально)
+3. Проверяются endpoints:
+   - `/health` (`status=ok`, `db=true`)
+   - `/health/readiness` (`ready=true`)
+4. Скрипт отправки уведомлений: `scripts/oncall_notify.sh`.
+5. Операционный runbook: `docs/runbook.md`.
+
 ## Sentry
 
 1. В backend env задать:

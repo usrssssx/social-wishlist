@@ -15,6 +15,7 @@ _DETAIL_MAP: dict[str, str] = {
     'Captcha token required': 'Подтвердите, что вы не робот.',
     'Invalid captcha token': 'Проверка CAPTCHA не пройдена. Попробуйте еще раз.',
     'Captcha verification failed': 'Не удалось проверить CAPTCHA. Попробуйте еще раз.',
+    'Account deletion confirmation phrase mismatch': 'Подтвердите удаление фразой DELETE.',
     'Captcha is not configured for production': 'CAPTCHA не настроена для продакшена.',
     'Test captcha key is not allowed in production': 'Тестовый ключ CAPTCHA нельзя использовать в продакшене.',
     'Captcha hostname mismatch': 'CAPTCHA выдана для другого домена.',

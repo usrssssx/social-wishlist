@@ -103,6 +103,24 @@ h1, h2, h3, h4 {
   display: inline-block;
 }
 
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-link {
+  font-size: .82rem;
+  color: var(--ink-2);
+  border-bottom: 1px solid transparent;
+  transition: border-color .15s ease, color .15s ease;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
 /* ─── Hero ──────────────────────────────────────────────────── */
 .hero {
   position: relative;
@@ -679,6 +697,29 @@ h1, h2, h3, h4 {
   line-height: 1.7;
 }
 
+.app-footer {
+  border-top: 1px solid var(--line);
+  background: rgba(250, 246, 240, .95);
+}
+
+.footer-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 14px 24px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 /* ─── Animations ────────────────────────────────────────────── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }
@@ -705,7 +746,10 @@ h1, h2, h3, h4 {
   .hero h1 { font-size: 2rem; }
   .section-title { font-size: 1.4rem; }
   .navbar { padding: 12px 20px; }
+  .navbar-actions > span { display: none; }
+  .navbar-actions { gap: 10px; }
   .btn-lg { padding: 13px 22px; font-size: .95rem; }
+  .footer-inner { flex-direction: column; align-items: flex-start; }
 }
 
 /* ─── Legacy shim: .item-image ──────────────────────────────── */

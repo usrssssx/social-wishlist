@@ -28,6 +28,10 @@ services:
         value: production
       - key: ALERTS_TEST_TOKEN
         sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: REALTIME_REDIS_CHANNEL
+        value: swl:realtime:events
       - key: MIN_CONTRIBUTION_AMOUNT
         value: 100
       - key: CAPTCHA_PROVIDER

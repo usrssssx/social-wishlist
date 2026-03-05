@@ -31,3 +31,10 @@ FORCE_RESTORE=true \
 1. Делать backup перед каждым деплоем схемы или массовыми миграциями.
 2. Хранить минимум 7 последних дампов во внешнем хранилище (S3/GCS/аналог).
 3. Раз в месяц прогонять тестовый restore на отдельной БД.
+
+## Автоматизация
+
+- Ежедневный backup workflow: `.github/workflows/scheduled-db-backup.yml`
+  - требует secret: `PROD_DATABASE_URL`
+- Еженедельный restore drill: `.github/workflows/scheduled-restore-drill.yml`
+- Локальный drill-скрипт: `scripts/restore_drill_local.sh`

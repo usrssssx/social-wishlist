@@ -248,6 +248,14 @@ export const api = {
     return request('/api/auth/me', { token });
   },
 
+  deleteAccount(token: string, password: string, confirmPhrase: string) {
+    return request<GenericMessageResponse>('/api/auth/me', {
+      method: 'DELETE',
+      token,
+      body: { password, confirm_phrase: confirmPhrase }
+    });
+  },
+
   listWishlists(token: string) {
     return request<WishlistSummary[]>('/api/wishlists', { token });
   },

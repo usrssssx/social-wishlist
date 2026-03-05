@@ -51,6 +51,46 @@ jobs:
           python -m compileall app
           pytest -q
 
+      - name: Run backend e2e gate
+        run: |
+          cd backend
+          pytest -q tests/test_e2e_public_realtime_flow.py tests/test_e2e_account_deletion.py
+
+  restore_drill:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Restore drill
+        env:
+          PGPASSWORD: postgres
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+        run: |
+          chmod +x scripts/db_backup.sh scripts/db_restore.sh scripts/restore_drill_local.sh
+          ./scripts/restore_drill_local.sh
+
   frontend:
     runs-on: ubuntu-latest
 
@@ -68,3 +108,10 @@ jobs:
           cd frontend
           npm ci
           npm run build
+
+  gate:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, restore_drill]
+    steps:
+      - name: Release gate passed
+        run: echo "All release-gate checks are green"

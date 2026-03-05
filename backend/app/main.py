@@ -76,10 +76,19 @@ def _alerts_ready() -> tuple[bool, str]:
     return True, 'ok'
 
 
+def _realtime_ready() -> tuple[bool, str]:
+    if settings.environment != 'production':
+        return True, 'not_required_outside_production'
+    if not (settings.redis_url or '').strip():
+        return False, 'redis_url_missing'
+    return True, 'ok'
+
+
 def _readiness_payload() -> dict[str, str | bool]:
     captcha_ok, captcha_reason = _captcha_ready()
     email_ok, email_reason = _email_ready()
     alerts_ok, alerts_reason = _alerts_ready()
+    realtime_ok, realtime_reason = _realtime_ready()
     # Alerts are advisory for MVP readiness; auth/captcha/email are blocking.
     ready = captcha_ok and email_ok
     return {
@@ -90,6 +99,8 @@ def _readiness_payload() -> dict[str, str | bool]:
         'email_reason': email_reason,
         'alerts_ok': alerts_ok,
         'alerts_reason': alerts_reason,
+        'realtime_ok': realtime_ok,
+        'realtime_reason': realtime_reason,
     }
 
 
@@ -131,6 +142,16 @@ async def health_metrics() -> dict[str, int]:
 @app.get('/health/readiness')
 async def health_readiness() -> dict[str, str | bool]:
     return _readiness_payload()
+
+
+@app.on_event('startup')
+async def startup_event() -> None:
+    await hub.startup(settings.redis_url, settings.realtime_redis_channel)
+
+
+@app.on_event('shutdown')
+async def shutdown_event() -> None:
+    await hub.shutdown()
 
 
 @app.post('/health/alerts/test')

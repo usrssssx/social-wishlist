@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Playfair_Display, DM_Sans, DM_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -32,13 +33,26 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <nav className="navbar">
           <div className="navbar-brand">
             <span className="dot" />
-            Wishlist
+            <Link href="/">Wishlist</Link>
           </div>
-          <span style={{ fontSize: '.82rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-            ✦ делитесь желаниями
-          </span>
+          <div className="navbar-actions">
+            <span style={{ fontSize: '.82rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              ✦ делитесь желаниями
+            </span>
+            <Link href="/terms" className="nav-link">Условия</Link>
+            <Link href="/privacy" className="nav-link">Конфиденциальность</Link>
+          </div>
         </nav>
         {children}
+        <footer className="app-footer">
+          <div className="footer-inner">
+            <p>© 2026 Social Wishlist</p>
+            <div className="footer-links">
+              <Link href="/terms">Условия использования</Link>
+              <Link href="/privacy">Политика конфиденциальности</Link>
+            </div>
+          </div>
+        </footer>
       </body>
     </html>
   );

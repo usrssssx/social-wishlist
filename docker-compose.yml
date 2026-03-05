@@ -16,6 +16,17 @@ services:
       timeout: 5s
       retries: 15
 
+  redis:
+    image: redis:7-alpine
+    container_name: swl-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
   backend:
     build: ./backend
     container_name: swl-backend
@@ -26,8 +37,11 @@ services:
       APP_BASE_URL: http://localhost:3000
       ENVIRONMENT: development
       MIN_CONTRIBUTION_AMOUNT: 100
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - '8000:8000'

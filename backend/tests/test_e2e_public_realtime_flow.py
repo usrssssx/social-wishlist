@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.db import AsyncSessionLocal
+from app.config import get_settings
 from app.main import app
 
 
@@ -24,16 +24,13 @@ def test_e2e_public_contribution_and_reserve_realtime() -> None:
         assert register_resp.status_code == 200, register_resp.text
 
         # Mark user as verified directly for E2E smoke (token raw value is not persisted by design).
-        import asyncio
-        from sqlalchemy import update
-        from app.models import User
+        sync_db_url = get_settings().sync_database_url().replace('postgresql+psycopg://', 'postgresql://', 1)
+        import psycopg
 
-        async def _verify() -> None:
-            async with AsyncSessionLocal() as db:
-                await db.execute(update(User).where(User.email == email).values(email_verified=True))
-                await db.commit()
-
-        asyncio.run(_verify())
+        with psycopg.connect(sync_db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute('UPDATE users SET email_verified = true WHERE email = %s', (email,))
+            conn.commit()
 
         login_resp = client.post(
             '/api/auth/login',

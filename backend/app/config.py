@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.1
     alerts_test_token: str | None = None
+    redis_url: str | None = None
+    realtime_redis_channel: str = 'swl:realtime:events'
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

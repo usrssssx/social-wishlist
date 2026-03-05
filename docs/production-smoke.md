@@ -26,6 +26,7 @@ CAPTCHA_TOKEN=<turnstile_token_if_enabled> \
 10. Проверить, что CAPTСHA работает на auth и guest-входе.
 11. Проверить Sentry smoke:
     `BACKEND_URL=https://... ALERTS_TEST_TOKEN=... ./scripts/sentry_alert_smoke.sh`
+12. Проверить удаление аккаунта в кабинете (Danger Zone) и недоступность удаленного профиля.
 
 ## Критерии "деплой ок"
 
@@ -35,6 +36,7 @@ CAPTCHA_TOKEN=<turnstile_token_if_enabled> \
 - Нет 5xx в backend логах на ключевом пользовательском пути.
 - Realtime работает в двух вкладках стабильно.
 - Sentry smoke endpoint возвращает `200` и `event_id`.
+- Удаление аккаунта действительно удаляет профиль и его вишлисты.
 
 ## GitHub Actions
 

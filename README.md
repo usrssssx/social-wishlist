@@ -13,6 +13,7 @@
 - Backend: FastAPI + SQLAlchemy async
 - DB: PostgreSQL
 - Realtime: FastAPI WebSocket hub
+- Realtime scaling: Redis pub/sub (multi-instance)
 - Auth: email + password (JWT) + email verification + reset password
 - Rate limiting: SlowAPI (IP-based)
 - CAPTCHA: Cloudflare Turnstile (optional)
@@ -31,6 +32,8 @@
 - После даты события новые брони и вклады закрываются автоматически.
 - Если к дедлайну собрана только часть суммы, товар помечается как `underfunded` (показывается, сколько не хватило).
 - Владелец вишлиста не видит, кто забронировал и кто сколько внёс.
+- Есть публичные страницы `Условия` и `Политика конфиденциальности`.
+- Пользователь может удалить аккаунт и связанные персональные данные в кабинете (Danger Zone).
 
 ## Edge-кейсы, которые покрыты
 
@@ -103,6 +106,7 @@ docker compose up -d --build
 - Доступен reset password flow через email.
 - На auth и публичные write-операции включён rate limit.
 - Для production рекомендуется заполнить `SENTRY_DSN` и email-переменные из `backend/.env.example`.
+- Для multi-instance realtime в production задайте `REDIS_URL`.
 - Если задан `RESEND_API_KEY`, backend отправляет письма через Resend API (приоритетно); иначе использует SMTP.
 - Для Resend webhook событий доставки/отказов задайте `RESEND_WEBHOOK_SECRET` и подключите endpoint `POST /api/webhooks/resend`.
 - При временных сбоях email-провайдера backend делает повторные попытки отправки (`EMAIL_SEND_RETRIES`).
@@ -125,6 +129,7 @@ docker compose up -d --build
 - Чеклист: `docs/production-smoke.md`
 - Алерты и наблюдаемость: `docs/alerts.md`
 - Backup/restore: `docs/backup-restore.md`
+- Incident runbook: `docs/runbook.md`
 - GitHub Actions smoke: `.github/workflows/production-smoke.yml`
 
 ## Backup и восстановление БД
@@ -167,17 +172,21 @@ FORCE_RESTORE=true \
    и заголовок `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
 12. Для проверки Sentry задайте `SENTRY_DSN` и `ALERTS_TEST_TOKEN`, затем выполните:
    `BACKEND_URL=https://<backend> ALERTS_TEST_TOKEN=<token> ./scripts/sentry_alert_smoke.sh`.
+13. Для realtime между инстансами задайте `REDIS_URL` и `REALTIME_REDIS_CHANNEL` (опционально оставить default).
 
 ## CI
 
-GitHub Actions workflow: `.github/workflows/ci.yml`
+GitHub Actions workflows:
 
-- Backend: Postgres service, `alembic upgrade head`, `pytest`, `compileall`.
-- Frontend: `npm ci` + `npm run build`.
+- `.github/workflows/ci.yml`: backend checks + frontend build + restore drill + release gate.
+- `.github/workflows/production-smoke.yml`: post-deploy smoke.
+- `.github/workflows/scheduled-db-backup.yml`: ежедневный backup dump.
+- `.github/workflows/scheduled-restore-drill.yml`: еженедельная проверка restore.
+- `.github/workflows/oncall-healthcheck.yml`: health/readiness мониторинг с on-call уведомлениями.
+- Для gate перед автодеплоем в main включите branch protection и требуйте статус `gate`.
 
 ## Что ещё можно усилить
 
 - OAuth (Google/GitHub) через отдельный auth-router.
-- Redis pub/sub для WebSocket broadcast в multi-instance проде.
 - История изменений по товарам + audit log.
-- E2E тесты Playwright для пользовательских сценариев.
+- Контроль версионирования публичных правовых документов.

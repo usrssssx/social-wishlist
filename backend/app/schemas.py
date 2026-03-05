@@ -59,6 +59,11 @@ class PasswordResetConfirmRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=8, max_length=128)
+    confirm_phrase: str = Field(min_length=3, max_length=32)
+
+
 class GenericMessageResponse(BaseModel):
     ok: bool = True
     detail: str

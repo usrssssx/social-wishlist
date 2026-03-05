@@ -1,0 +1,43 @@
+name: On-call Healthcheck
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      PROD_BACKEND_URL: ${{ vars.PROD_BACKEND_URL }}
+      ONCALL_SLACK_WEBHOOK_URL: ${{ secrets.ONCALL_SLACK_WEBHOOK_URL }}
+      ONCALL_TELEGRAM_BOT_TOKEN: ${{ secrets.ONCALL_TELEGRAM_BOT_TOKEN }}
+      ONCALL_TELEGRAM_CHAT_ID: ${{ secrets.ONCALL_TELEGRAM_CHAT_ID }}
+      ONCALL_WEBHOOK_URL: ${{ secrets.ONCALL_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check backend health and readiness
+        run: |
+          chmod +x scripts/oncall_notify.sh
+          BACKEND_URL="${PROD_BACKEND_URL:-https://swl-backend.onrender.com}"
+
+          health_json="$(curl -sS --max-time 15 "${BACKEND_URL}/health" || true)"
+          readiness_json="$(curl -sS --max-time 15 "${BACKEND_URL}/health/readiness" || true)"
+
+          status="$(printf '%s' "$health_json" | jq -r '.status // empty' 2>/dev/null || true)"
+          db_ok="$(printf '%s' "$health_json" | jq -r '.db // empty' 2>/dev/null || true)"
+          ready="$(printf '%s' "$readiness_json" | jq -r '.ready // empty' 2>/dev/null || true)"
+
+          if [[ "$status" != "ok" || "$db_ok" != "true" || "$ready" != "true" ]]; then
+            ts="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            message="SWL health alert at ${ts}
+          backend=${BACKEND_URL}
+          status=${status} db=${db_ok} ready=${ready}
+          health=${health_json}
+          readiness=${readiness_json}"
+            ./scripts/oncall_notify.sh "$message"
+            exit 1
+          fi
+
+          echo "Healthcheck passed"

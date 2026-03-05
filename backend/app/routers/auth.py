@@ -10,6 +10,7 @@ from ..models import EmailActionPurpose, User
 from ..rate_limit import limiter
 from ..schemas import (
     AuthResponse,
+    DeleteAccountRequest,
     EmailActionConfirmRequest,
     EmailActionRequest,
     GenericMessageResponse,
@@ -200,3 +201,30 @@ async def password_reset_confirm(
 @router.get('/me', response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.delete('/me', response_model=GenericMessageResponse)
+@limiter.limit('3/minute')
+async def delete_me(
+    request: Request,
+    payload: DeleteAccountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GenericMessageResponse:
+    _ = request
+    if payload.confirm_phrase.strip().upper() != 'DELETE':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Account deletion confirmation phrase mismatch',
+        )
+
+    result = await db.execute(select(User).where(User.id == current_user.id).with_for_update())
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid credentials')
+
+    await db.delete(user)
+    await db.commit()
+    return GenericMessageResponse(detail='Аккаунт и персональные данные удалены.')
