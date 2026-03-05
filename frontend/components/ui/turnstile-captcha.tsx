@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 type TurnstileApi = {
   render: (container: HTMLElement, options: Record<string, unknown>) => string;
   remove: (widgetId: string) => void;
+  execute?: (widgetId: string) => void;
 };
 
 declare global {
@@ -83,11 +84,20 @@ type TurnstileRenderOverrides = {
   size?: 'normal' | 'compact' | 'invisible' | 'flexible';
   appearance?: 'always' | 'execute' | 'interaction-only';
   theme?: 'auto' | 'light' | 'dark';
+  execution?: 'render' | 'execute';
 };
 
-const SIZE_FALLBACKS: TurnstileRenderOverrides['size'][] = ['invisible', 'normal', 'compact', 'flexible'];
-const APPEARANCE_FALLBACKS: TurnstileRenderOverrides['appearance'][] = ['always', 'execute', 'interaction-only'];
-const THEME_FALLBACKS: TurnstileRenderOverrides['theme'][] = ['auto', 'light', 'dark'];
+const RETRYABLE_CODES = new Set(['400020', '400030', '400040']);
+const RENDER_PROFILES: TurnstileRenderOverrides[] = [
+  {},
+  { size: 'normal' },
+  { size: 'compact' },
+  { size: 'flexible' },
+  { size: 'invisible', execution: 'execute', appearance: 'execute' },
+  { size: 'invisible', execution: 'render', appearance: 'always' },
+  { size: 'invisible', execution: 'render', appearance: 'interaction-only' },
+  { size: 'invisible', execution: 'execute', appearance: 'always' },
+];
 
 function normalizeErrorCode(code: unknown): string {
   if (typeof code === 'number' || typeof code === 'string') {
@@ -118,6 +128,7 @@ function getReadableTurnstileError(code: unknown): string {
 
 export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorChange }: TurnstileCaptchaProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const activeRenderRef = useRef(0);
   const [renderError, setRenderError] = useState('');
   const [initializing, setInitializing] = useState(false);
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -132,12 +143,10 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
     let cancelled = false;
     let widgetId: string | null = null;
     let turnstileApi: TurnstileApi | null = null;
-    let activeOverrides: TurnstileRenderOverrides = {};
+    let activeOverrides: TurnstileRenderOverrides = RENDER_PROFILES[0];
+    let profileIndex = 0;
     let retries = 0;
-    const maxRetries = 7;
-    const triedSizes = new Set<TurnstileRenderOverrides['size']>();
-    const triedAppearances = new Set<TurnstileRenderOverrides['appearance']>();
-    const triedThemes = new Set<TurnstileRenderOverrides['theme']>();
+    const maxRetries = RENDER_PROFILES.length - 1;
     const reportError = (message: string) => {
       if (cancelled) return;
       setRenderError(message);
@@ -161,13 +170,21 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
       sitekey: siteKey,
       ...activeOverrides,
       callback: (token: string) => {
+        if (cancelled) return;
         setRenderError('');
         onErrorChange?.(null);
         onTokenChange(token);
       },
-      'expired-callback': () => onTokenChange(null),
-      'timeout-callback': () => onTokenChange(null),
+      'expired-callback': () => {
+        if (cancelled) return;
+        onTokenChange(null);
+      },
+      'timeout-callback': () => {
+        if (cancelled) return;
+        onTokenChange(null);
+      },
       'error-callback': (code: unknown) => {
+        if (cancelled) return;
         const normalizedCode = normalizeErrorCode(code);
         onTokenChange(null);
         if (tryRetryWithFallback(normalizedCode)) {
@@ -181,9 +198,42 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
     const renderWidget = () => {
       if (cancelled || !containerRef.current || !turnstileApi) return;
       try {
+        const renderId = activeRenderRef.current + 1;
+        activeRenderRef.current = renderId;
         clearWidget();
         resetContainer();
-        widgetId = turnstileApi.render(containerRef.current, buildRenderOptions());
+        const options = buildRenderOptions();
+        const scopedOptions: Record<string, unknown> = {
+          ...options,
+          callback: (token: string) => {
+            if (cancelled || activeRenderRef.current !== renderId) return;
+            (options.callback as (t: string) => void)(token);
+          },
+          'expired-callback': () => {
+            if (cancelled || activeRenderRef.current !== renderId) return;
+            (options['expired-callback'] as () => void)();
+          },
+          'timeout-callback': () => {
+            if (cancelled || activeRenderRef.current !== renderId) return;
+            (options['timeout-callback'] as () => void)();
+          },
+          'error-callback': (code: unknown) => {
+            if (cancelled || activeRenderRef.current !== renderId) return;
+            (options['error-callback'] as (c: unknown) => void)(code);
+          },
+          'unsupported-callback': () => {
+            if (cancelled || activeRenderRef.current !== renderId) return;
+            (options['unsupported-callback'] as () => void)();
+          },
+        };
+        widgetId = turnstileApi.render(containerRef.current, scopedOptions);
+        if (widgetId && activeOverrides.execution === 'execute' && turnstileApi.execute) {
+          setTimeout(() => {
+            if (!cancelled && activeRenderRef.current === renderId && widgetId && turnstileApi?.execute) {
+              turnstileApi.execute(widgetId);
+            }
+          }, 0);
+        }
         setInitializing(false);
       } catch {
         setInitializing(false);
@@ -192,33 +242,13 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
     };
 
     const tryRetryWithFallback = (code: string): boolean => {
-      if (!code || retries >= maxRetries) return false;
-
-      let nextOverrides: TurnstileRenderOverrides | null = null;
-
-      if (code === '400020') {
-        const nextSize = SIZE_FALLBACKS.find((size) => !triedSizes.has(size));
-        if (nextSize) {
-          triedSizes.add(nextSize);
-          nextOverrides = { ...activeOverrides, size: nextSize };
-        }
-      } else if (code === '400030') {
-        const nextAppearance = APPEARANCE_FALLBACKS.find((appearance) => !triedAppearances.has(appearance));
-        if (nextAppearance) {
-          triedAppearances.add(nextAppearance);
-          nextOverrides = { ...activeOverrides, appearance: nextAppearance };
-        }
-      } else if (code === '400040') {
-        const nextTheme = THEME_FALLBACKS.find((theme) => !triedThemes.has(theme));
-        if (nextTheme) {
-          triedThemes.add(nextTheme);
-          nextOverrides = { ...activeOverrides, theme: nextTheme };
-        }
-      }
-
-      if (!nextOverrides) {
+      if (!RETRYABLE_CODES.has(code) || retries >= maxRetries) {
         return false;
       }
+
+      profileIndex += 1;
+      const nextOverrides = RENDER_PROFILES[profileIndex];
+      if (!nextOverrides) return false;
 
       retries += 1;
       activeOverrides = nextOverrides;
@@ -252,6 +282,7 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
 
     return () => {
       cancelled = true;
+      activeRenderRef.current += 1;
       setInitializing(false);
       onTokenChange(null);
       onErrorChange?.(null);

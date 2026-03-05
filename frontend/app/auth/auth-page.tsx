@@ -1,6 +1,4 @@
 'use client';
-
-import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -318,10 +316,6 @@ export default function AuthPage() {
               </p>
             </>
           )}
-        </div>
-        <div className="row" style={{ justifyContent: 'center', marginTop: 14 }}>
-          <Link className="btn btn-ghost btn-sm" href="/terms">Условия</Link>
-          <Link className="btn btn-ghost btn-sm" href="/privacy">Конфиденциальность</Link>
         </div>
       </div>
     </main>

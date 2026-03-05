@@ -97,10 +97,6 @@ export default function HomePage() {
         </ul>
       </section>
 
-      <section className="row animate-fade-up" style={{ marginTop: 16, animationDelay: '.3s', justifyContent: 'center' }}>
-        <Link className="btn btn-ghost btn-sm" href="/terms">Условия использования</Link>
-        <Link className="btn btn-ghost btn-sm" href="/privacy">Политика конфиденциальности</Link>
-      </section>
     </main>
   );
 }

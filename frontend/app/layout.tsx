@@ -39,8 +39,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <span style={{ fontSize: '.82rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
               ✦ делитесь желаниями
             </span>
-            <Link href="/terms" className="nav-link">Условия</Link>
-            <Link href="/privacy" className="nav-link">Конфиденциальность</Link>
           </div>
         </nav>
         {children}
