@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
@@ -48,7 +49,7 @@ async def health() -> dict[str, str | bool]:
     db_ok = True
     try:
         async with AsyncSessionLocal() as session:
-            await session.execute(text('SELECT 1'))
+            await asyncio.wait_for(session.execute(text('SELECT 1')), timeout=2.0)
     except Exception:
         db_ok = False
     overloaded = metrics.errors_5xx_last_5m >= settings.health_5xx_threshold_5m
