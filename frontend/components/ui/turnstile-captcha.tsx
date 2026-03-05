@@ -30,7 +30,19 @@ function loadTurnstileScript(): Promise<void> {
     const existing = document.getElementById(TURNSTILE_SCRIPT_ID) as HTMLScriptElement | null;
 
     if (existing) {
-      resolve();
+      const started = Date.now();
+      const waitExisting = () => {
+        if (window.turnstile) {
+          resolve();
+          return;
+        }
+        if (Date.now() - started > 10000) {
+          reject(new Error('Turnstile script exists but API is not ready'));
+          return;
+        }
+        setTimeout(waitExisting, 50);
+      };
+      waitExisting();
       return;
     }
 
@@ -44,7 +56,10 @@ function loadTurnstileScript(): Promise<void> {
     document.head.appendChild(script);
   });
 
-  return window.__turnstileLoader;
+  return window.__turnstileLoader.catch((err) => {
+    window.__turnstileLoader = undefined;
+    throw err;
+  });
 }
 
 async function waitForTurnstile(timeoutMs: number): Promise<TurnstileApi> {
@@ -61,25 +76,47 @@ async function waitForTurnstile(timeoutMs: number): Promise<TurnstileApi> {
 type TurnstileCaptchaProps = {
   onTokenChange: (token: string | null) => void;
   resetNonce: number;
+  onErrorChange?: (error: string | null) => void;
 };
 
-export default function TurnstileCaptcha({ onTokenChange, resetNonce }: TurnstileCaptchaProps) {
+function getReadableTurnstileError(code: unknown): string {
+  const normalized = typeof code === 'number' || typeof code === 'string' ? String(code) : '';
+  if (!normalized) {
+    return 'Не удалось загрузить CAPTCHA. Обновите страницу.';
+  }
+  if (normalized === '600010' || normalized === '110200') {
+    return 'CAPTCHA недоступна для этого домена. Проверьте настройки ключей Turnstile.';
+  }
+  return `Ошибка CAPTCHA (${normalized}). Обновите страницу и попробуйте снова.`;
+}
+
+export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorChange }: TurnstileCaptchaProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [renderError, setRenderError] = useState('');
+  const [initializing, setInitializing] = useState(false);
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
     if (!siteKey) {
       onTokenChange(null);
+      onErrorChange?.(null);
       return;
     }
 
     let cancelled = false;
     let widgetId: string | null = null;
+    const reportError = (message: string) => {
+      if (cancelled) return;
+      setRenderError(message);
+      onTokenChange(null);
+      onErrorChange?.(message);
+    };
 
     async function mount() {
+      setInitializing(true);
       setRenderError('');
       onTokenChange(null);
+      onErrorChange?.(null);
       try {
         await loadTurnstileScript();
         const turnstile = await waitForTurnstile(10000);
@@ -88,15 +125,21 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce }: Turnstil
         containerRef.current.innerHTML = '';
         widgetId = turnstile.render(containerRef.current, {
           sitekey: siteKey,
-          callback: (token: string) => onTokenChange(token),
+          callback: (token: string) => {
+            setRenderError('');
+            onErrorChange?.(null);
+            onTokenChange(token);
+          },
           'expired-callback': () => onTokenChange(null),
-          'error-callback': () => onTokenChange(null),
+          'timeout-callback': () => onTokenChange(null),
+          'error-callback': (code: unknown) => reportError(getReadableTurnstileError(code)),
+          'unsupported-callback': () => reportError('Ваш браузер не поддерживает CAPTCHA. Обновите браузер.'),
           theme: 'light',
         });
+        setInitializing(false);
       } catch {
-        if (!cancelled) {
-          setRenderError('Не удалось загрузить CAPTCHA. Обновите страницу.');
-        }
+        setInitializing(false);
+        reportError('Не удалось загрузить CAPTCHA. Обновите страницу.');
       }
     }
 
@@ -104,12 +147,14 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce }: Turnstil
 
     return () => {
       cancelled = true;
+      setInitializing(false);
       onTokenChange(null);
+      onErrorChange?.(null);
       if (widgetId && window.turnstile) {
         window.turnstile.remove(widgetId);
       }
     };
-  }, [onTokenChange, resetNonce, siteKey]);
+  }, [onErrorChange, onTokenChange, resetNonce, siteKey]);
 
   if (!siteKey) {
     return null;
@@ -117,7 +162,8 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce }: Turnstil
 
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <div ref={containerRef} />
+      <div ref={containerRef} style={{ minHeight: 65 }} />
+      {initializing && !renderError && <p className="muted" style={{ margin: 0, fontSize: '.85rem' }}>Загружаем CAPTCHA...</p>}
       {renderError && <p className="error" style={{ margin: 0 }}>{renderError}</p>}
     </div>
   );

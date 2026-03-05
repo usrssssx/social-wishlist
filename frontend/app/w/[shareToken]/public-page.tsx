@@ -22,6 +22,7 @@ export default function PublicWishlistPage() {
   const [flash, setFlash] = useState('');
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaNonce, setCaptchaNonce] = useState(0);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
   const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
   async function load(token: string | null) {
@@ -65,6 +66,10 @@ export default function PublicWishlistPage() {
     let shouldResetCaptcha = false;
     try {
       if (captchaEnabled) {
+        if (captchaError) {
+          setError(captchaError);
+          return;
+        }
         if (!captchaToken) {
           setError('Подтвердите CAPTCHA');
           return;
@@ -188,7 +193,11 @@ export default function PublicWishlistPage() {
               <input className="input" value={viewerName}
                 onChange={(e) => setViewerName(e.target.value)}
                 placeholder="Ваше имя" required style={{ width: 200 }} />
-              <TurnstileCaptcha onTokenChange={setCaptchaToken} resetNonce={captchaNonce} />
+              <TurnstileCaptcha
+                onTokenChange={setCaptchaToken}
+                resetNonce={captchaNonce}
+                onErrorChange={setCaptchaError}
+              />
               <button className="btn btn-primary" type="submit">Войти как гость</button>
             </form>
           </div>

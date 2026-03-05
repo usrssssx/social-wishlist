@@ -25,6 +25,7 @@ export default function AuthPage() {
   const [resetRequested, setResetRequested] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaNonce, setCaptchaNonce] = useState(0);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
 
   const verifyToken = searchParams.get('verify_token');
   const resetToken = searchParams.get('reset_token');
@@ -96,6 +97,10 @@ export default function AuthPage() {
       }
 
       if (captchaEnabled) {
+        if (captchaError) {
+          setError(captchaError);
+          return;
+        }
         if (!captchaToken) {
           setError('Подтвердите CAPTCHA');
           return;
@@ -137,6 +142,10 @@ export default function AuthPage() {
     let shouldResetCaptcha = false;
     try {
       if (captchaEnabled) {
+        if (captchaError) {
+          setError(captchaError);
+          return;
+        }
         if (!captchaToken) {
           setError('Подтвердите CAPTCHA');
           return;
@@ -167,6 +176,10 @@ export default function AuthPage() {
     let shouldResetCaptcha = false;
     try {
       if (captchaEnabled) {
+        if (captchaError) {
+          setError(captchaError);
+          return;
+        }
         if (!captchaToken) {
           setError('Подтвердите CAPTCHA');
           return;
@@ -260,7 +273,11 @@ export default function AuthPage() {
             {error && <p className="error">{error}</p>}
             {info && <p className="success">{info}</p>}
             {!resetToken && (
-              <TurnstileCaptcha onTokenChange={setCaptchaToken} resetNonce={captchaNonce} />
+              <TurnstileCaptcha
+                onTokenChange={setCaptchaToken}
+                resetNonce={captchaNonce}
+                onErrorChange={setCaptchaError}
+              />
             )}
 
             <button className="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%', marginTop: 4 }}>
