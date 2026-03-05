@@ -38,6 +38,7 @@ class SlidingWindowLimiter:
 
 _RULES: dict[str, RateRule] = {
     'viewer_session': RateRule(limit=12, window_seconds=10 * 60),
+    'reservation': RateRule(limit=80, window_seconds=60 * 60),
     'contribution': RateRule(limit=45, window_seconds=60 * 60),
 }
 

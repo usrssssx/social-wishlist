@@ -85,7 +85,6 @@ async def create_viewer_session(
 
 
 @router.post('/w/{share_token}/items/{item_id}/reserve', response_model=ReserveResponse)
-@limiter.limit('60/hour')
 async def reserve_item(
     request: Request,
     share_token: str,
@@ -93,7 +92,8 @@ async def reserve_item(
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ReserveResponse:
-    _ = request
+    client_ip = request.client.host if request.client else 'unknown'
+    enforce_public_action_limit('reservation', f'{share_token}:{client_ip}')
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     if is_deadline_passed(wishlist.event_date):
@@ -156,7 +156,6 @@ async def reserve_item(
 
 
 @router.delete('/w/{share_token}/items/{item_id}/reserve', response_model=ReserveResponse)
-@limiter.limit('60/hour')
 async def unreserve_item(
     request: Request,
     share_token: str,
@@ -164,7 +163,8 @@ async def unreserve_item(
     db: AsyncSession = Depends(get_db),
     x_viewer_token: str | None = Header(default=None),
 ) -> ReserveResponse:
-    _ = request
+    client_ip = request.client.host if request.client else 'unknown'
+    enforce_public_action_limit('reservation', f'{share_token}:{client_ip}')
     wishlist = await get_wishlist_by_token(db, share_token)
     session = await require_viewer_session(db, wishlist.id, x_viewer_token)
     try:
