@@ -20,12 +20,19 @@ require_http_ok() {
 
 json_get() {
   local key="$1"
+  local payload
+  payload="$(cat)"
+  JSON_INPUT="$payload" \
   python3 - "$key" <<'PY'
 import json
+import os
 import sys
 
 key = sys.argv[1]
-data = json.load(sys.stdin)
+raw = os.environ.get("JSON_INPUT", "").strip()
+if not raw:
+    sys.exit(1)
+data = json.loads(raw)
 value = data.get(key)
 if value is None:
     sys.exit(1)
