@@ -84,6 +84,15 @@ function getReadableTurnstileError(code: unknown): string {
   if (!normalized) {
     return 'Не удалось загрузить CAPTCHA. Обновите страницу.';
   }
+  if (normalized === '400020') {
+    return 'CAPTCHA настроена с неверным размером. Обновите страницу или свяжитесь с поддержкой.';
+  }
+  if (normalized === '400030') {
+    return 'CAPTCHA настроена с неверным режимом отображения. Обновите страницу или свяжитесь с поддержкой.';
+  }
+  if (normalized === '400040') {
+    return 'CAPTCHA настроена с неверной темой. Обновите страницу или свяжитесь с поддержкой.';
+  }
   if (normalized === '600010' || normalized === '110200') {
     return 'CAPTCHA недоступна для этого домена. Проверьте настройки ключей Turnstile.';
   }
@@ -125,6 +134,8 @@ export default function TurnstileCaptcha({ onTokenChange, resetNonce, onErrorCha
         containerRef.current.innerHTML = '';
         widgetId = turnstile.render(containerRef.current, {
           sitekey: siteKey,
+          size: 'flexible',
+          appearance: 'always',
           callback: (token: string) => {
             setRenderError('');
             onErrorChange?.(null);
