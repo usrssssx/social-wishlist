@@ -18,11 +18,6 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deletePhrase, setDeletePhrase] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-  const [showDangerZone, setShowDangerZone] = useState(false);
 
   async function loadData(authToken: string) {
     setLoading(true);
@@ -63,22 +58,6 @@ export default function DashboardPage() {
     void navigator.clipboard.writeText(url);
   }
 
-  async function onDeleteAccount(e: FormEvent) {
-    e.preventDefault();
-    if (!token) return;
-    setDeleteError('');
-    setDeleteLoading(true);
-    try {
-      await api.deleteAccount(token, deletePassword, deletePhrase.trim());
-      clearAuthToken();
-      router.push('/');
-    } catch (err) {
-      setDeleteError(getReadableError(err, 'Не удалось удалить аккаунт'));
-    } finally {
-      setDeleteLoading(false);
-    }
-  }
-
   return (
     <main className="page">
       {/* Page header */}
@@ -89,19 +68,15 @@ export default function DashboardPage() {
         </div>
         <div className="row">
           <button
-            className="btn btn-danger btn-sm"
-            type="button"
-            onClick={() => setShowDangerZone((v) => !v)}
-          >
-            {showDangerZone ? 'Скрыть опасную зону' : 'Опасная зона'}
-          </button>
-          <button
             className="btn btn-primary"
             type="button"
             onClick={() => setShowForm(!showForm)}
           >
             {showForm ? '✕ Закрыть' : '+ Новый список'}
           </button>
+          <Link className="btn btn-ghost btn-sm" href="/dashboard/settings">
+            Настройки аккаунта
+          </Link>
           <button
             className="btn btn-ghost btn-sm"
             type="button"
@@ -210,49 +185,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {showDangerZone && (
-        <section className="card animate-fade-up" style={{ marginTop: 26, borderColor: 'rgba(212,70,58,.22)' }}>
-          <h3 style={{ marginBottom: 8 }}>Опасная зона</h3>
-          <p className="muted" style={{ marginBottom: 14 }}>
-            Удаление аккаунта удалит ваши вишлисты и связанные персональные данные без возможности восстановления.
-          </p>
-          <form className="stack" onSubmit={onDeleteAccount}>
-            <div className="grid grid-2" style={{ gap: 12 }}>
-              <div className="form-group">
-                <label className="label" htmlFor="deletePassword">Пароль</label>
-                <input
-                  id="deletePassword"
-                  className="input"
-                  type="password"
-                  minLength={8}
-                  required
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  placeholder="Введите пароль"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label" htmlFor="deletePhrase">Фраза подтверждения</label>
-                <input
-                  id="deletePhrase"
-                  className="input"
-                  type="text"
-                  required
-                  value={deletePhrase}
-                  onChange={(e) => setDeletePhrase(e.target.value)}
-                  placeholder="Введите DELETE"
-                />
-              </div>
-            </div>
-            {deleteError && <p className="error">{deleteError}</p>}
-            <div className="row">
-              <button className="btn btn-danger" type="submit" disabled={deleteLoading}>
-                {deleteLoading ? 'Удаляем...' : 'Удалить аккаунт и данные'}
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
     </main>
   );
 }
