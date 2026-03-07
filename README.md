@@ -1,57 +1,75 @@
 # Social Wish List
 
-Готовое MVP веб-приложения социального вишлиста:
-- владелец создаёт wishlist и товары;
-- делится публичной ссылкой без обязательной регистрации для гостей;
-- друзья резервируют подарок или делают вклад в общий сбор;
-- владелец видит только агрегаты (без имён и сумм по людям);
-- обновления приходят в realtime через WebSocket.
+Social Wish List - MVP веб-приложения для личных и совместных подарочных списков.
+
+Что уже реализовано:
+- владелец создает wishlist и товары;
+- делится публичной ссылкой без регистрации гостей;
+- гости могут резервировать подарок или вносить вклад в общий сбор;
+- владелец видит только агрегаты, без раскрытия персональных данных гостей;
+- статус обновляется в реальном времени через WebSocket;
+- регистрация и восстановление пароля работают через email (verify/reset);
+- удаление аккаунта вынесено в раздел `Настройки аккаунта` (Danger Zone).
 
 ## Стек
 
-- Frontend: Next.js 15 (React 19, TypeScript)
-- Backend: FastAPI + SQLAlchemy async
-- DB: PostgreSQL
-- Realtime: FastAPI WebSocket hub
-- Realtime scaling: Redis pub/sub (multi-instance)
-- Auth: email + password (JWT) + email verification + reset password
-- Rate limiting: SlowAPI (IP-based)
-- CAPTCHA: Cloudflare Turnstile (optional)
-- Migrations: Alembic
-- Observability: Sentry (optional)
-- Автозаполнение товара по URL: OpenGraph/JSON-LD parser
+- Frontend: Next.js 15, React 19, TypeScript
+- Backend: FastAPI, SQLAlchemy async, Alembic
+- База данных: PostgreSQL
+- Realtime: WebSocket hub, Redis pub/sub для multi-instance
+- Auth: JWT, verify email, reset password
+- Anti-abuse: SlowAPI rate limit, Cloudflare Turnstile
+- Email: Resend API (приоритет), fallback SMTP
+- Monitoring: Sentry (опционально), health/readiness endpoints
+
+## Архитектура
+
+- `frontend` работает с backend по REST API (`/api/...`) и WebSocket (`/ws/w/{share_token}`).
+- `backend` хранит состояние в PostgreSQL и рассылает realtime-события.
+- При нескольких инстансах backend синхронизирует realtime через Redis channel (`REALTIME_REDIS_CHANNEL`).
+- Письма verify/reset отправляются через Resend или SMTP и имеют HTML + text версии.
+
+## Структура репозитория
+
+- `backend/` - FastAPI, миграции, тесты.
+- `frontend/` - Next.js приложение.
+- `scripts/` - smoke, backup/restore, on-call уведомления.
+- `docs/` - runbook, alerts, backup/restore, production smoke checklist.
+- `.github/workflows/` - CI, post-deploy smoke, scheduled backup/restore, healthcheck.
+- `render.yaml` - Blueprint для Render (frontend + backend + postgres).
 
 ## Продуктовые решения
 
-- Публичный просмотр вишлиста доступен без регистрации.
-- Для действий (бронь/вклад) гость создаёт лёгкую сессию с именем.
-- Минимальный вклад: `100` (настраивается через `MIN_CONTRIBUTION_AMOUNT`).
-- Если у товара уже есть вклад, целиком забронировать его нельзя.
-- Если товар удаляют после брони/вкладов, он уходит в архив (`archived`) и остаётся видимым с объяснением (чтобы не потерять контекст обещаний).
-- При достижении цели сбора товар считается закрытым автоматически.
-- После даты события новые брони и вклады закрываются автоматически.
-- Если к дедлайну собрана только часть суммы, товар помечается как `underfunded` (показывается, сколько не хватило).
-- Владелец вишлиста не видит, кто забронировал и кто сколько внёс.
-- Есть публичные страницы `Условия` и `Политика конфиденциальности`.
-- Пользователь может удалить аккаунт и связанные персональные данные в разделе «Настройки аккаунта».
+- Публичный просмотр wishlist доступен без логина.
+- Для действий гостя используется легкая guest-сессия (`display_name` + `session_token`).
+- Минимальный вклад: `MIN_CONTRIBUTION_AMOUNT` (по умолчанию `100`).
+- Полная бронь запрещена, если по позиции уже есть вклады.
+- При удалении позиции с активностями она переводится в архив (`archived`) для сохранения контекста.
+- После даты события блокируются новые брони и вклады.
+- При недосборе к дедлайну позиция получает статус `underfunded`.
+- Есть страницы `Условия` и `Политика конфиденциальности`.
+- Удаление аккаунта требует пароль и фразу подтверждения `DELETE`.
 
 ## Edge-кейсы, которые покрыты
 
-- Двойная бронь одного товара блокируется.
-- Вклад выше остатка до цели отклоняется.
-- Вклад в архивный товар отклоняется.
-- Бронь архивного товара отклоняется.
-- Параллельные попытки забронировать один товар: проходит только одна.
-- Некорректная/просроченная guest-сессия отклоняется.
-- URL автозаполнения невалиден или не парсится: корректная ошибка API.
+- блокируется двойная бронь одного подарка;
+- вклад выше остатка до цели отклоняется;
+- вклад/бронь архивного товара отклоняются;
+- параллельная гонка на бронь пропускает только один успешный запрос;
+- невалидная/просроченная guest-сессия отклоняется;
+- невалидный URL автозаполнения возвращает управляемую ошибку API.
 
 ## Локальный запуск
+
+### Требования
+
+- Python `3.12` (рекомендовано для совместимости зависимостей)
+- Node.js `22`
+- PostgreSQL `16+`
 
 ### 1) PostgreSQL
 
 Нужен Postgres на `localhost:5432`.
-
-Пример создания БД/пользователя:
 
 ```sql
 CREATE ROLE wishlist LOGIN PASSWORD 'wishlist';
@@ -64,13 +82,13 @@ CREATE DATABASE wishlist OWNER wishlist;
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-Если БД была создана до Alembic (таблицы уже есть), выполните один раз:
+Если таблицы были созданы до Alembic:
 
 ```bash
 cd backend
@@ -87,60 +105,163 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Открыть: `http://localhost:3000`
+Открыть `http://localhost:3000`.
 
 ## Docker
-
-Есть `docker-compose.yml`, но нужен запущенный Docker daemon.
 
 ```bash
 docker compose up -d --build
 ```
 
-Контейнер backend при старте выполняет `alembic upgrade head`.
+Backend контейнер на старте выполняет `alembic upgrade head`.
 
-## Безопасность и прод-режим
+## API эндпоинты (основные)
 
-- Регистрация требует подтверждение email (письмо с verify link).
-- Вход запрещён для неподтверждённых email.
-- Доступен reset password flow через email.
-- На auth и публичные write-операции включён rate limit.
-- Для production рекомендуется заполнить `SENTRY_DSN` и email-переменные из `backend/.env.example`.
-- Для multi-instance realtime в production задайте `REDIS_URL`.
-- Если задан `RESEND_API_KEY`, backend отправляет письма через Resend API (приоритетно); иначе использует SMTP.
-- Для Resend webhook событий доставки/отказов задайте `RESEND_WEBHOOK_SECRET` и подключите endpoint `POST /api/webhooks/resend`.
-- При временных сбоях email-провайдера backend делает повторные попытки отправки (`EMAIL_SEND_RETRIES`).
-- Для защиты от ботов можно включить Turnstile: `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend).
-- Для production с Turnstile обязательно задайте `CAPTCHA_EXPECTED_HOSTNAME` (например, `swl-frontend.onrender.com`).
-- Для production тестовые ключи Turnstile запрещены по умолчанию (`ALLOW_TEST_CAPTCHA_IN_PRODUCTION=false`).
-- Проверка готовности окружения: `GET /health/readiness`.
-- Для E2E проверки Sentry-алертов задайте `ALERTS_TEST_TOKEN` и используйте `POST /health/alerts/test`.
+Auth:
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/resend-verification`
+- `POST /api/auth/verify-email/confirm`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/confirm`
+- `GET /api/auth/me`
+- `DELETE /api/auth/me`
 
-## Проверка realtime
+Owner:
+- `POST /api/wishlists`
+- `GET /api/wishlists`
+- `GET /api/wishlists/{wishlist_id}`
+- `POST /api/wishlists/{wishlist_id}/items`
+- `PATCH /api/wishlists/items/{item_id}`
+- `DELETE /api/wishlists/items/{item_id}`
+- `GET /api/wishlists/items/autofill`
 
-- Откройте публичную ссылку в двух вкладках.
-- В одной сделайте бронь/вклад.
-- Во второй обновление состояния придёт мгновенно без reload.
+Public:
+- `GET /api/public/w/{share_token}`
+- `POST /api/public/w/{share_token}/sessions`
+- `POST /api/public/w/{share_token}/items/{item_id}/reserve`
+- `DELETE /api/public/w/{share_token}/items/{item_id}/reserve`
+- `POST /api/public/w/{share_token}/items/{item_id}/contributions`
 
-## Production smoke после деплоя
+Webhooks:
+- `POST /api/webhooks/resend`
 
-- Скрипт: `scripts/smoke_prod.sh`
-- Sentry smoke: `scripts/sentry_alert_smoke.sh`
-- Чеклист: `docs/production-smoke.md`
-- Алерты и наблюдаемость: `docs/alerts.md`
-- Backup/restore: `docs/backup-restore.md`
-- Incident runbook: `docs/runbook.md`
-- GitHub Actions smoke: `.github/workflows/production-smoke.yml`
+Health/ops:
+- `GET /health`
+- `GET /health/readiness`
+- `GET /health/metrics`
+- `POST /health/alerts/test`
 
-## Backup и восстановление БД
+## Переменные окружения
 
-Перед рискованными изменениями схемы/данных:
+Полные примеры:
+- `backend/.env.example`
+- `frontend/.env.example`
+
+Ключевые переменные backend для production:
+
+| Переменная | Обязательно | Назначение |
+| --- | --- | --- |
+| `DATABASE_URL` | Да | Подключение к PostgreSQL |
+| `JWT_SECRET` | Да | Подпись JWT |
+| `CORS_ORIGINS` | Да | Origin фронтенда |
+| `APP_BASE_URL` | Да | База ссылок в email verify/reset |
+| `ENVIRONMENT=production` | Да | Режим production |
+| `CAPTCHA_SECRET_KEY` | Да | Secret Turnstile |
+| `CAPTCHA_EXPECTED_HOSTNAME` | Да | Хост фронтенда без `https://` |
+| `RESEND_API_KEY` или `SMTP_HOST` | Да | Провайдер отправки email |
+| `RESEND_WEBHOOK_SECRET` | Да при Resend | Валидация webhook `/api/webhooks/resend` |
+| `REDIS_URL` | Нет (рекомендовано) | Realtime в multi-instance |
+| `SENTRY_DSN` | Нет (рекомендовано) | Ошибки и алерты |
+| `ALERTS_TEST_TOKEN` | Нет (рекомендовано) | Защита `POST /health/alerts/test` |
+
+Ключевые переменные frontend:
+
+| Переменная | Обязательно | Назначение |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | Да | Базовый URL backend |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Да при включенной CAPTCHA | Site key Turnstile |
+
+## Readiness и health
+
+- `/health` показывает доступность БД, счетчики ошибок, итоговый статус.
+- `/health/readiness` возвращает детальные флаги готовности.
+- Важно: `ready=true` зависит от `captcha_ok` и `email_ok`.
+- `alerts_ok` и `realtime_ok` в readiness сейчас носят advisory-характер и не блокируют `ready`.
+
+## Деплой на Render
+
+В репозитории есть `render.yaml` (frontend + backend + postgres).
+
+Рекомендованный порядок:
+
+1. Создать Blueprint из `render.yaml`.
+2. Дождаться первого деплоя сервисов `swl-db`, `swl-backend`, `swl-frontend`.
+3. Выставить `NEXT_PUBLIC_API_URL=<backend-url>` в frontend.
+4. Выставить `CORS_ORIGINS=<frontend-url>` и `APP_BASE_URL=<frontend-url>` в backend.
+5. Настроить CAPTCHA: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), `CAPTCHA_SECRET_KEY` и `CAPTCHA_EXPECTED_HOSTNAME=<frontend-host>` (backend).
+6. Настроить email: `RESEND_API_KEY` и `SMTP_FROM_EMAIL` (домен отправителя должен быть верифицирован в Resend).
+7. Задать `RESEND_WEBHOOK_SECRET` в backend.
+8. Настроить webhook в Resend: `POST https://<backend>/api/webhooks/resend` + header `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
+9. При multi-instance realtime добавить `REDIS_URL`.
+10. Для мониторинга добавить `SENTRY_DSN` и `ALERTS_TEST_TOKEN`.
+11. Проверить `GET /health/readiness` -> `ready=true`.
+
+Примечание: если в Render возникают проблемы с зависимостями Python, зафиксируйте runtime на `3.12.x`.
+
+## Тестирование
+
+### Backend
+
+```bash
+cd backend
+python -m compileall app
+pytest -q
+```
+
+E2E-gate тесты:
+
+```bash
+cd backend
+pytest -q tests/test_e2e_public_realtime_flow.py tests/test_e2e_account_deletion.py
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+### Smoke на проде
+
+```bash
+BACKEND_URL=https://<backend> \
+FRONTEND_URL=https://<frontend> \
+SHARE_TOKEN=<optional_share_token> \
+CAPTCHA_TOKEN=<optional_turnstile_token> \
+./scripts/smoke_prod.sh
+```
+
+- если `SHARE_TOKEN` не передан, guest/public шаги будут `SKIP`.
+- если `CAPTCHA_TOKEN` не передан при включенной CAPTCHA, guest-сессия может упасть по `400`.
+
+Sentry smoke:
+
+```bash
+BACKEND_URL=https://<backend> ALERTS_TEST_TOKEN=<token> ./scripts/sentry_alert_smoke.sh
+```
+
+## Backup/restore
+
+Backup:
 
 ```bash
 DATABASE_URL=postgresql://... ./scripts/db_backup.sh
 ```
 
-Тестовый restore:
+Restore:
 
 ```bash
 DATABASE_URL=postgresql://... \
@@ -149,44 +270,54 @@ FORCE_RESTORE=true \
 ./scripts/db_restore.sh
 ```
 
-## Деплой
+## CI/CD и операции
 
-В репозитории добавлен `render.yaml` для быстрого деплоя на Render (frontend + backend + postgres).
+Workflows:
+- `.github/workflows/ci.yml`
+- `.github/workflows/production-smoke.yml`
+- `.github/workflows/oncall-healthcheck.yml`
+- `.github/workflows/scheduled-db-backup.yml`
+- `.github/workflows/scheduled-restore-drill.yml`
 
-Важно: из этого окружения нет авторизованных CLI/токенов облачных платформ, поэтому публичный URL автоматически создать нельзя без вашего аккаунта.
+Операционная документация:
+- `docs/production-smoke.md`
+- `docs/alerts.md`
+- `docs/runbook.md`
+- `docs/backup-restore.md`
 
-Порядок на Render:
+## Troubleshooting
 
-1. New > Blueprint, выберите этот репозиторий и `render.yaml`.
-2. Render создаст `swl-db`, `swl-backend`, `swl-frontend`.
-3. После первого деплоя откройте frontend service и скопируйте его public URL.
-4. В backend service задайте `CORS_ORIGINS=<frontend-public-url>` и redeploy backend.
-5. В frontend service задайте `NEXT_PUBLIC_API_URL=<backend-public-url>` и redeploy frontend.
-6. В backend service задайте `APP_BASE_URL=<frontend-public-url>` для email ссылок.
-7. Если включаете CAPTCHA: задайте `CAPTCHA_SECRET_KEY` (backend) и `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend), затем redeploy обоих сервисов.
-8. Для Turnstile в backend задайте `CAPTCHA_EXPECTED_HOSTNAME=<frontend-host-without-https>`.
-9. Убедитесь, что `/health/readiness` возвращает `ready=true`.
-10. Для email-доставки через Resend задайте `RESEND_API_KEY` в backend service.
-11. Для мониторинга delivery/bounce в Resend Webhooks укажите URL:
-   `https://<backend>/api/webhooks/resend`
-   и заголовок `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
-12. Для проверки Sentry задайте `SENTRY_DSN` и `ALERTS_TEST_TOKEN`, затем выполните:
-   `BACKEND_URL=https://<backend> ALERTS_TEST_TOKEN=<token> ./scripts/sentry_alert_smoke.sh`.
-13. Для realtime между инстансами задайте `REDIS_URL` и `REALTIME_REDIS_CHANNEL` (опционально оставить default).
+### 1) "Проверка CAPTCHA не пройдена", хотя виджет на странице показывает успех
 
-## CI
+Проверьте:
+- соответствие пары ключей (`NEXT_PUBLIC_TURNSTILE_SITE_KEY` и `CAPTCHA_SECRET_KEY`) одному и тому же виджету;
+- `CAPTCHA_EXPECTED_HOSTNAME` равен реальному хосту фронтенда без протокола;
+- в production не используется test secret при `ALLOW_TEST_CAPTCHA_IN_PRODUCTION=false`.
 
-GitHub Actions workflows:
+### 2) Не отправляется письмо verify/reset
 
-- `.github/workflows/ci.yml`: backend checks + frontend build + restore drill + release gate.
-- `.github/workflows/production-smoke.yml`: post-deploy smoke.
-- `.github/workflows/scheduled-db-backup.yml`: ежедневный backup dump.
-- `.github/workflows/scheduled-restore-drill.yml`: еженедельная проверка restore.
-- `.github/workflows/oncall-healthcheck.yml`: health/readiness мониторинг с on-call уведомлениями.
-- Для gate перед автодеплоем в main включите branch protection и требуйте статус `gate`.
+Проверьте:
+- задан ли `RESEND_API_KEY` или SMTP-настройки (`SMTP_HOST` и т.д.);
+- корректен ли `SMTP_FROM_EMAIL` (для Resend нужен верифицированный домен/адрес);
+- при Resend задан ли `RESEND_WEBHOOK_SECRET` и настроен webhook;
+- корректен ли `APP_BASE_URL` (иначе ссылки в письме будут неверными).
 
-## Что ещё можно усилить
+### 3) `/health/readiness` возвращает `ready=false`
 
-- OAuth (Google/GitHub) через отдельный auth-router.
-- История изменений по товарам + audit log.
-- Контроль версионирования публичных правовых документов.
+Смотрите поля:
+- `captcha_reason` для проблем CAPTCHA-конфига;
+- `email_reason` для проблем email-конфига;
+- `alerts_reason` и `realtime_reason` для advisory-диагностики.
+
+### 4) Нет realtime-обновлений между вкладками/инстансами
+
+Проверьте:
+- WebSocket путь `/ws/w/{share_token}`;
+- наличие `REDIS_URL` при горизонтальном масштабировании;
+- отсутствие сетевых ограничений на WebSocket в инфраструктуре.
+
+## Что можно усилить дальше
+
+- OAuth (Google/GitHub) и управление подключенными провайдерами.
+- История изменений с audit log для важных действий.
+- Версионирование публичных юридических документов.
