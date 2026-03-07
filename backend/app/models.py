@@ -35,6 +35,11 @@ class EmailActionPurpose(str, enum.Enum):
     reset_password = 'reset_password'
 
 
+class OAuthProvider(str, enum.Enum):
+    google = 'google'
+    github = 'github'
+
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -47,6 +52,7 @@ class User(Base):
 
     wishlists: Mapped[list[Wishlist]] = relationship(back_populates='owner', cascade='all, delete-orphan')
     email_tokens: Mapped[list[EmailActionToken]] = relationship(back_populates='user', cascade='all, delete-orphan')
+    oauth_accounts: Mapped[list[OAuthAccount]] = relationship(back_populates='user', cascade='all, delete-orphan')
 
 
 class EmailActionToken(Base):
@@ -61,6 +67,22 @@ class EmailActionToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates='email_tokens')
+
+
+class OAuthAccount(Base):
+    __tablename__ = 'oauth_accounts'
+    __table_args__ = (
+        UniqueConstraint('provider', 'provider_user_id', name='uq_oauth_provider_user'),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    provider: Mapped[OAuthProvider] = mapped_column(Enum(OAuthProvider))
+    provider_user_id: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship(back_populates='oauth_accounts')
 
 
 class Wishlist(Base):

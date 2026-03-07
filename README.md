@@ -18,6 +18,7 @@ Social Wish List - MVP веб-приложения для личных и сов
 - База данных: PostgreSQL
 - Realtime: WebSocket hub, Redis pub/sub для multi-instance
 - Auth: JWT, verify email, reset password
+- OAuth: Google/GitHub вход (опционально)
 - Anti-abuse: SlowAPI rate limit, Cloudflare Turnstile
 - Email: Resend API (приоритет), fallback SMTP
 - Monitoring: Sentry (опционально), health/readiness endpoints
@@ -124,6 +125,8 @@ Auth:
 - `POST /api/auth/verify-email/confirm`
 - `POST /api/auth/password-reset/request`
 - `POST /api/auth/password-reset/confirm`
+- `GET /api/auth/oauth/{provider}/start`
+- `GET /api/auth/oauth/{provider}/callback`
 - `GET /api/auth/me`
 - `DELETE /api/auth/me`
 
@@ -171,6 +174,11 @@ Health/ops:
 | `CAPTCHA_EXPECTED_HOSTNAME` | Да | Хост фронтенда без `https://` |
 | `RESEND_API_KEY` или `SMTP_HOST` | Да | Провайдер отправки email |
 | `RESEND_WEBHOOK_SECRET` | Да при Resend | Валидация webhook `/api/webhooks/resend` |
+| `OAUTH_GOOGLE_CLIENT_ID` | Нет (если нужен Google OAuth) | OAuth client id Google |
+| `OAUTH_GOOGLE_CLIENT_SECRET` | Нет (если нужен Google OAuth) | OAuth client secret Google |
+| `OAUTH_GITHUB_CLIENT_ID` | Нет (если нужен GitHub OAuth) | OAuth client id GitHub |
+| `OAUTH_GITHUB_CLIENT_SECRET` | Нет (если нужен GitHub OAuth) | OAuth client secret GitHub |
+| `OAUTH_REDIRECT_BASE_URL` | Нет (рекомендовано для OAuth) | URL фронтенда для возврата после OAuth |
 | `REDIS_URL` | Нет (рекомендовано) | Realtime в multi-instance |
 | `SENTRY_DSN` | Нет (рекомендовано) | Ошибки и алерты |
 | `ALERTS_TEST_TOKEN` | Нет (рекомендовано) | Защита `POST /health/alerts/test` |
@@ -189,6 +197,26 @@ Health/ops:
 - Важно: `ready=true` зависит от `captcha_ok` и `email_ok`.
 - `alerts_ok` и `realtime_ok` в readiness сейчас носят advisory-характер и не блокируют `ready`.
 
+## OAuth (Google/GitHub)
+
+Как включить:
+
+1. В backend задайте `OAUTH_GOOGLE_CLIENT_ID`, `OAUTH_GOOGLE_CLIENT_SECRET` для Google OAuth.
+2. В backend задайте `OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET` для GitHub OAuth.
+3. В backend задайте `OAUTH_REDIRECT_BASE_URL=<frontend-url>` (например `https://swl-frontend.onrender.com`).
+4. Проверьте, что в frontend выставлен `NEXT_PUBLIC_API_URL=<backend-url>`.
+
+Redirect URI у провайдеров:
+
+- Google: `https://<backend>/api/auth/oauth/google/callback`
+- GitHub: `https://<backend>/api/auth/oauth/github/callback`
+
+Проверка:
+
+1. Откройте `/auth`.
+2. Нажмите “Войти через Google” или “Войти через GitHub”.
+3. После callback пользователь должен попасть в `/dashboard` с активной JWT-сессией.
+
 ## Деплой на Render
 
 В репозитории есть `render.yaml` (frontend + backend + postgres).
@@ -203,9 +231,10 @@ Health/ops:
 6. Настроить email: `RESEND_API_KEY` и `SMTP_FROM_EMAIL` (домен отправителя должен быть верифицирован в Resend).
 7. Задать `RESEND_WEBHOOK_SECRET` в backend.
 8. Настроить webhook в Resend: `POST https://<backend>/api/webhooks/resend` + header `Authorization: Bearer <RESEND_WEBHOOK_SECRET>`.
-9. При multi-instance realtime добавить `REDIS_URL`.
-10. Для мониторинга добавить `SENTRY_DSN` и `ALERTS_TEST_TOKEN`.
-11. Проверить `GET /health/readiness` -> `ready=true`.
+9. При необходимости OAuth задайте `OAUTH_GOOGLE_CLIENT_ID`, `OAUTH_GOOGLE_CLIENT_SECRET`, `OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE_URL=<frontend-url>`.
+10. При multi-instance realtime добавить `REDIS_URL`.
+11. Для мониторинга добавить `SENTRY_DSN` и `ALERTS_TEST_TOKEN`.
+12. Проверить `GET /health/readiness` -> `ready=true`.
 
 Примечание: если в Render возникают проблемы с зависимостями Python, зафиксируйте runtime на `3.12.x`.
 
@@ -224,6 +253,7 @@ E2E-gate тесты:
 ```bash
 cd backend
 pytest -q tests/test_e2e_public_realtime_flow.py tests/test_e2e_account_deletion.py
+pytest -q tests/test_oauth_flow.py
 ```
 
 ### Frontend
@@ -316,8 +346,16 @@ Workflows:
 - наличие `REDIS_URL` при горизонтальном масштабировании;
 - отсутствие сетевых ограничений на WebSocket в инфраструктуре.
 
+### 5) OAuth не логинит пользователя
+
+Проверьте:
+- корректны ли `OAUTH_*` client id/client secret;
+- корректно ли выставлен `OAUTH_REDIRECT_BASE_URL`;
+- совпадают ли redirect URI в Google/GitHub и backend;
+- есть ли во fragment URL `oauth_error` после callback.
+
 ## Что можно усилить дальше
 
-- OAuth (Google/GitHub) и управление подключенными провайдерами.
+- Управление подключенными OAuth-провайдерами в профиле (link/unlink).
 - История изменений с audit log для важных действий.
 - Версионирование публичных юридических документов.

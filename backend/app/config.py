@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     captcha_verify_url: str = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
     captcha_expected_hostname: str | None = None
     allow_test_captcha_in_production: bool = False
+    oauth_google_client_id: str | None = None
+    oauth_google_client_secret: str | None = None
+    oauth_github_client_id: str | None = None
+    oauth_github_client_secret: str | None = None
+    oauth_redirect_base_url: str | None = None
+    oauth_state_ttl_seconds: int = 600
 
     @field_validator('database_url')
     @classmethod

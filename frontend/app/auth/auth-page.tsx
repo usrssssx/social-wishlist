@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import TurnstileCaptcha from '@/components/ui/turnstile-captcha';
-import { api, getReadableError } from '@/lib/api';
+import { api, getOAuthStartUrl, getReadableError } from '@/lib/api';
 import { getAuthToken, setAuthToken } from '@/lib/utils';
 
 type Mode = 'login' | 'register';
@@ -31,6 +31,28 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (getAuthToken()) router.replace('/dashboard');
+  }, [router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+    if (!hash) return;
+
+    const hashParams = new URLSearchParams(hash);
+    const oauthToken = hashParams.get('oauth_token');
+    const oauthError = hashParams.get('oauth_error');
+
+    if (oauthToken) {
+      setAuthToken(oauthToken);
+      window.history.replaceState(null, '', '/auth');
+      router.replace('/dashboard');
+      return;
+    }
+    if (oauthError) {
+      setError(oauthError);
+      window.history.replaceState(null, '', '/auth');
+    }
   }, [router]);
 
   useEffect(() => {
@@ -198,6 +220,11 @@ export default function AuthPage() {
     }
   }
 
+  function onOAuthLogin(provider: 'google' | 'github') {
+    if (typeof window === 'undefined') return;
+    window.location.assign(getOAuthStartUrl(provider));
+  }
+
   return (
     <main className="page" style={{ display: 'flex', justifyContent: 'center', paddingTop: 48 }}>
       <div style={{ width: '100%', maxWidth: 460 }} className="animate-fade-up">
@@ -302,6 +329,27 @@ export default function AuthPage() {
 
           {!resetToken && (
             <>
+              <div className="divider" />
+              <div className="stack" style={{ marginTop: 4 }}>
+                <button
+                  className="btn btn-ghost btn-lg"
+                  type="button"
+                  onClick={() => onOAuthLogin('google')}
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  Войти через Google
+                </button>
+                <button
+                  className="btn btn-ghost btn-lg"
+                  type="button"
+                  onClick={() => onOAuthLogin('github')}
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  Войти через GitHub
+                </button>
+              </div>
               <div className="divider" />
               <p style={{ textAlign: 'center', fontSize: '.9rem', color: 'var(--muted)' }}>
                 {mode === 'login' ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}{' '}

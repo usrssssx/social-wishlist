@@ -8,7 +8,7 @@ import type {
   WishlistSummary
 } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
@@ -360,4 +360,8 @@ export const api = {
 export function getWsUrl(shareToken: string): string {
   const base = API_URL.replace('http://', 'ws://').replace('https://', 'wss://');
   return `${base}/ws/w/${shareToken}`;
+}
+
+export function getOAuthStartUrl(provider: 'google' | 'github'): string {
+  return `${API_URL}/api/auth/oauth/${provider}/start`;
 }

@@ -48,6 +48,16 @@ services:
         sync: false
       - key: RESEND_WEBHOOK_SECRET
         sync: false
+      - key: OAUTH_GOOGLE_CLIENT_ID
+        sync: false
+      - key: OAUTH_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_GITHUB_CLIENT_ID
+        sync: false
+      - key: OAUTH_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_REDIRECT_BASE_URL
+        sync: false
       - key: EMAIL_SEND_RETRIES
         value: 3
       - key: EMAIL_SEND_RETRY_BACKOFF_SECONDS
